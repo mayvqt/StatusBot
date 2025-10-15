@@ -13,26 +13,33 @@ public class ConfigManager
     public ConfigManager()
     {
         LoadConfigSafe();
-        var dir = Path.GetDirectoryName(_configPath);
-        if (string.IsNullOrEmpty(dir)) dir = ".";
-        _watcher = new FileSystemWatcher(dir, Path.GetFileName(_configPath))
+        try
         {
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size
-        };
-        _watcher.Changed += (s, e) =>
+            var dir = Path.GetDirectoryName(_configPath);
+            if (string.IsNullOrEmpty(dir)) dir = ".";
+            _watcher = new FileSystemWatcher(dir, Path.GetFileName(_configPath))
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size
+            };
+            _watcher.Changed += (s, e) =>
+            {
+                try
+                {
+                    LoadConfigSafe();
+                    ConfigChanged?.Invoke();
+                    ErrorHelper.Log("Config reloaded successfully.");
+                }
+                catch (Exception ex)
+                {
+                    ErrorHelper.LogError("Error reloading config", ex);
+                }
+            };
+            _watcher.EnableRaisingEvents = true;
+        }
+        catch (Exception ex)
         {
-            try
-            {
-                LoadConfigSafe();
-                ConfigChanged?.Invoke();
-                Console.WriteLine("Config reloaded successfully.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error reloading config: {ex.Message}");
-            }
-        };
-        _watcher.EnableRaisingEvents = true;
+            ErrorHelper.LogError("Failed to initialize FileSystemWatcher for config", ex);
+        }
     }
 
     private void LoadConfigSafe()
@@ -54,7 +61,7 @@ public class ConfigManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading config: {ex.Message}");
+            ErrorHelper.LogError("Error loading config", ex);
             // Keep previous config if available
         }
     }

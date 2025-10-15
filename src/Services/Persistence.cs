@@ -10,29 +10,53 @@ public class Persistence
 
     public Persistence()
     {
-        LoadState();
+        try
+        {
+            LoadState();
+        }
+        catch (Exception ex)
+        {
+            ErrorHelper.LogError("Failed to load state during Persistence initialization", ex);
+            State = new State();
+        }
     }
 
     public void LoadState()
     {
-        if (File.Exists(_statePath))
+        try
         {
-            var json = File.ReadAllText(_statePath);
-            State = JsonConvert.DeserializeObject<State>(json) ?? new State();
+            if (File.Exists(_statePath))
+            {
+                var json = File.ReadAllText(_statePath);
+                State = JsonConvert.DeserializeObject<State>(json) ?? new State();
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorHelper.LogError($"Error loading state from '{_statePath}'", ex);
+            State = new State();
         }
     }
 
     public void SaveState()
     {
-        var tempPath = _statePath + ".tmp";
-        File.WriteAllText(tempPath, JsonConvert.SerializeObject(State, Formatting.Indented));
-        if (File.Exists(_statePath))
+        try
         {
-            File.Replace(tempPath, _statePath, null);
+            var tempPath = _statePath + ".tmp";
+            File.WriteAllText(tempPath, JsonConvert.SerializeObject(State, Formatting.Indented));
+            if (File.Exists(_statePath))
+            {
+                File.Replace(tempPath, _statePath, null);
+            }
+            else
+            {
+                File.Move(tempPath, _statePath);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            File.Move(tempPath, _statePath);
+            ErrorHelper.LogError($"Error saving state to '{_statePath}'", ex);
+            // Best-effort: leave in-memory state intact
         }
     }
 }
