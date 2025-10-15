@@ -45,7 +45,7 @@ public class DiscordUpdater : BackgroundService
                 var status = kvp.Value;
                 string DiscordTimestamp(DateTime dt) => $"<t:{new DateTimeOffset(dt).ToUnixTimeSeconds()}:f>";
                 var embed = new EmbedBuilder()
-                    .WithTitle($"{name} Service Status")
+                    .WithTitle($"{name} Status")
                     .WithDescription($"**Status:** {(status.Online ? "🟢 Online" : "🔴 Offline")}\n**Uptime:** {status.UptimePercent:F2}%")
                     .AddField("Last Change", DiscordTimestamp(status.LastChange), true)
                     .AddField("Last Checked", DiscordTimestamp(status.LastChecked), true)

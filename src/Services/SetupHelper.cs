@@ -7,8 +7,9 @@ public static class SetupHelper
 {
     public static void EnsureConfigAndState()
     {
-        // Ensure config.json
-        if (!File.Exists("config.json"))
+        Directory.CreateDirectory("config");
+        var configPath = Path.Combine("config", "config.json");
+        if (!File.Exists(configPath))
         {
             var defaultConfig = new Config
             {
@@ -22,18 +23,18 @@ public static class SetupHelper
                     new ServiceDefinition { Name = "DNS", Type = "ICMP", Host = "8.8.8.8" }
                 }
             };
-            File.WriteAllText("config.json", JsonConvert.SerializeObject(defaultConfig, Formatting.Indented));
+            File.WriteAllText(configPath, JsonConvert.SerializeObject(defaultConfig, Formatting.Indented));
         }
 
-        // Ensure state.json
-        if (!File.Exists("state.json"))
+        var statePath = Path.Combine("config", "state.json");
+        if (!File.Exists(statePath))
         {
             var defaultState = new State
             {
                 Messages = new Dictionary<string, ulong>(),
                 Statuses = new Dictionary<string, ServiceStatus>()
             };
-            File.WriteAllText("state.json", JsonConvert.SerializeObject(defaultState, Formatting.Indented));
+            File.WriteAllText(statePath, JsonConvert.SerializeObject(defaultState, Formatting.Indented));
         }
     }
 }

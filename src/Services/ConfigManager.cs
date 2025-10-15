@@ -6,13 +6,13 @@ namespace ServiceStatusBot.Services;
 public class ConfigManager
 {
     public Config Config { get; private set; } = new();
-    private readonly string _configPath = "config.json";
+    private readonly string _configPath = Path.Combine("config", "config.json");
     private FileSystemWatcher? _watcher;
     public event Action? ConfigChanged;
 
     public ConfigManager()
     {
-        LoadConfig();
+        LoadConfigSafe();
         var dir = Path.GetDirectoryName(_configPath);
         if (string.IsNullOrEmpty(dir)) dir = ".";
         _watcher = new FileSystemWatcher(dir, Path.GetFileName(_configPath))
@@ -21,18 +21,41 @@ public class ConfigManager
         };
         _watcher.Changed += (s, e) =>
         {
-            LoadConfig();
-            ConfigChanged?.Invoke();
+            try
+            {
+                LoadConfigSafe();
+                ConfigChanged?.Invoke();
+                Console.WriteLine("Config reloaded successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reloading config: {ex.Message}");
+            }
         };
         _watcher.EnableRaisingEvents = true;
     }
 
-    public void LoadConfig()
+    private void LoadConfigSafe()
     {
-        if (File.Exists(_configPath))
+        try
         {
-            var json = File.ReadAllText(_configPath);
-            Config = JsonConvert.DeserializeObject<Config>(json) ?? new Config();
+            if (File.Exists(_configPath))
+            {
+                using (var stream = new FileStream(_configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream))
+                {
+                    var json = reader.ReadToEnd();
+                    var config = JsonConvert.DeserializeObject<Config>(json);
+                    if (config == null)
+                        throw new Exception("Config file is empty or invalid.");
+                    Config = config;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading config: {ex.Message}");
+            // Keep previous config if available
         }
     }
 }
