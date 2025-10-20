@@ -90,9 +90,9 @@ public class DiscordUpdater : BackgroundService
                                 .WithTitle($"{name} Status")
                                 .WithDescription($"**Status:** {(status.Online ? "🟢 Online" : "🔴 Offline")}\n**Uptime:** {status.UptimePercent:F2}%")
                                 .AddField("Last Change", $"{DiscordTimestamp(status.LastChange)} ({FormatUtc(status.LastChange)})", true)
-                                .AddField("Updated", $"{embedToken} ({now.UtcDateTime:yyyy-MM-dd HH:mm 'UTC'})", true)
+                                .AddField("Updated", $"{embedToken}", true)
                                 .WithColor(accent)
-                                .WithFooter(footer => footer.Text = "StatusBot")
+                                .WithFooter(footer => footer.Text = "Status Bot")
                                 .Build();
 
                             IUserMessage? msg = null;
