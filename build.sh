@@ -16,8 +16,13 @@ SELF_CONTAINED=false
 SINGLE_FILE=false
 TRIM=false
 CLEAN=false
+ZIP=false
+DRY_RUN=false
+PARALLEL=false
+CI=false
 CONFIG=Release
 PROJECT=""
+RIDS=(win-x64 linux-x64 linux-arm64 osx-x64 osx-arm64)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,6 +38,16 @@ while [[ $# -gt 0 ]]; do
       PROJECT="$2"; shift 2;;
     --clean)
       CLEAN=true; shift;;
+    --rids)
+      IFS=',' read -r -a RIDS <<< "$2"; shift 2;;
+    --zip)
+      ZIP=true; shift;;
+    --dry-run)
+      DRY_RUN=true; shift;;
+    --parallel)
+      PARALLEL=true; shift;;
+    --ci|--no-pause)
+      CI=true; shift;;
     *)
       echo "Unknown arg: $1"; exit 1;;
   esac
@@ -95,14 +110,45 @@ fi
 # RIDs to produce
 RIDS=(win-x64 linux-x64 linux-arm64 osx-x64 osx-arm64)
 
+pids=()
 for RID in "${RIDS[@]}"; do
   OUTDIR="$SCRIPT_DIR/build/$PROJECT_NAME/$CONFIG/net8.0/$RID/publish"
   echo ""
   echo "Publishing for $RID -> $OUTDIR"
   CMD=(dotnet publish "$PUBLISH_TARGET" -c "$CONFIG" -r "$RID" -o "$OUTDIR" "${OPTS[@]}")
   echo "> ${CMD[*]}"
-  "${CMD[@]}"
-  echo "Publish for $RID completed."
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "Dry-run: skipping publish for $RID"
+  else
+    if [[ "$PARALLEL" == true ]]; then
+      ("${CMD[@]}") &
+      pids+=("$!")
+    else
+      "${CMD[@]}"
+    fi
+  fi
+
+  if [[ "$ZIP" == true ]]; then
+    if [[ "$DRY_RUN" == true ]]; then
+      echo "Dry-run: would zip $OUTDIR to $SCRIPT_DIR/build/$PROJECT_NAME/$CONFIG/$RID.zip"
+    else
+      mkdir -p "$SCRIPT_DIR/build/$PROJECT_NAME/$CONFIG"
+      if [[ "$PARALLEL" == true && "$DRY_RUN" == false ]]; then
+        (zip -r "$SCRIPT_DIR/build/$PROJECT_NAME/$CONFIG/$RID.zip" "$OUTDIR" > /dev/null 2>&1) &
+      else
+        zip -r "$SCRIPT_DIR/build/$PROJECT_NAME/$CONFIG/$RID.zip" "$OUTDIR"
+      fi
+    fi
+  fi
 done
+
+if [[ "$PARALLEL" == true && ${#pids[@]} -gt 0 ]]; then
+  echo "Waiting for background publish jobs..."
+  for pid in "${pids[@]}"; do
+    wait "$pid"
+  done
+fi
+
+echo "All publishes completed."
 
 echo "All publishes completed."

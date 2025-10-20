@@ -17,8 +17,13 @@ set "SELF_CONTAINED=false"
 set "SINGLE_FILE=false"
 set "TRIM=false"
 set "CLEAN=false"
+set "ZIP=false"
+set "DRY_RUN=false"
+set "PARALLEL=false"
+set "CI=false"
 set "CONFIG=Release"
 set "PROJECT="
+set "RIDS=win-x64 linux-x64 linux-arm64 osx-x64 osx-arm64"
 
 :parse_args
 if "%~1"=="" goto end_parse
@@ -33,6 +38,28 @@ if "%~1"=="--trim" (
 )
 if "%~1"=="--clean" (
     set "CLEAN=true" & shift & goto parse_args
+)
+if "%~1"=="--rids" (
+    if "%~2"=="" (
+        echo Missing value for --rids
+        exit /b 1
+    )
+    set "RIDS=%~2" & shift & shift & goto parse_args
+)
+if "%~1"=="--zip" (
+    set "ZIP=true" & shift & goto parse_args
+)
+if "%~1"=="--dry-run" (
+    set "DRY_RUN=true" & shift & goto parse_args
+)
+if "%~1"=="--parallel" (
+    set "PARALLEL=true" & shift & goto parse_args
+)
+if "%~1"=="--ci" (
+    set "CI=true" & shift & goto parse_args
+)
+if "%~1"=="--no-pause" (
+    set "CI=true" & shift & goto parse_args
 )
 if "%~1"=="--config" (
     if "%~2"=="" (
@@ -114,21 +141,44 @@ if "%SINGLE_FILE%"=="true" set "OPTS=%OPTS% -p:PublishSingleFile=true"
 if "%TRIM%"=="true" set "OPTS=%OPTS% -p:PublishTrimmed=true"
 
 :: RIDs to publish for
-set "RIDS=win-x64 linux-x64 linux-arm64 osx-x64 osx-arm64"
+:: Expand comma-separated RIDS into tokens
+set "_rids=%RIDS%"
+set "_rids=!_rids:,= !"
 
-for %%R in (%RIDS%) do (
+if "%PARALLEL%"=="true" (
+    echo Note: parallel publish is not implemented in build.bat; running sequentially.
+)
+
+for %%R in (!_rids!) do (
     set "OUTDIR=%SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\net8.0\%%R\publish"
     echo.
     echo Publishing for %%R to !OUTDIR!
     echo Running: dotnet publish "!PUBLISH_TARGET!" -c "%CONFIG%" -r "%%R" -o "!OUTDIR!" !OPTS!
-    dotnet publish "!PUBLISH_TARGET!" -c "%CONFIG%" -r "%%R" -o "!OUTDIR!" !OPTS!
+    if "%DRY_RUN%"=="true" (
+        echo Dry-run: skipping dotnet publish for %%R
+    ) else (
+        dotnet publish "!PUBLISH_TARGET!" -c "%CONFIG%" -r "%%R" -o "!OUTDIR!" !OPTS!
+    )
     if ERRORLEVEL 1 (
         echo Publish for %%R failed with exit code %ERRORLEVEL%
         endlocal
         exit /b %ERRORLEVEL%
     )
+
+    if "%ZIP%"=="true" (
+        if "%DRY_RUN%"=="true" (
+            echo Dry-run: would zip !OUTDIR! to %SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\%%R.zip
+        ) else (
+            echo Creating zip for %%R
+            powershell -NoProfile -Command "Compress-Archive -Path '"!OUTDIR!\*' -DestinationPath '%SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\%%R.zip' -Force"
+        )
+    )
 )
 
 echo All publishes completed.
 endlocal
+
+if "%CI%"=="false" (
+    pause
+)
 

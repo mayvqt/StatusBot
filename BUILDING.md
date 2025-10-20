@@ -17,6 +17,14 @@ Common options
 - `--config <name>`    Configuration to publish (Debug or Release). Default: Release
 - `--project <path>`   Path to .csproj or project directory. Defaults to `./src` if present, otherwise current dir
 
+Additional options
+
+- `--rids <list>`      Comma-separated RIDs to build (e.g. `--rids linux-x64,osx-x64`). Defaults to a common set.
+- `--zip`              Create a zip archive for each RID publish under `build/<project>/<config>/<rid>.zip`.
+- `--dry-run`          Show commands without executing them.
+- `--parallel`         Run publishes in parallel (only implemented in `build.sh`; `build.bat` will run sequentially).
+- `--ci` or `--no-pause`  Run in CI mode (no interactive pause at the end).
+
 Examples
 
 Windows (framework-dependent):
@@ -26,6 +34,14 @@ Windows (framework-dependent):
 Clean and publish self-contained single-file trimmed for Linux x64:
 
     ./build.sh --self-contained --single-file --trim --clean
+
+Run only specific RIDs and create zips (dry-run):
+
+    ./build.sh --rids linux-x64,osx-x64 --zip --dry-run
+
+Parallel publishes (bash only):
+
+    ./build.sh --parallel
 
 Output
 
