@@ -66,27 +66,25 @@ public class DiscordUpdater : BackgroundService
                             var name = kvp.Key;
                             var status = kvp.Value;
 
-                            // Helper: produce a Discord <t:...> token from a DateTime (treat Unspecified as UTC)
+                            // Helper: produce a Discord <t:...> token from a DateTime using server local time
+                            // Treat Unspecified as Local to preserve server timezone behavior
                             string DiscordTimestamp(DateTime dt)
                             {
-                                var kind = dt.Kind == DateTimeKind.Unspecified ? DateTimeKind.Utc : dt.Kind;
+                                var kind = dt.Kind == DateTimeKind.Unspecified ? DateTimeKind.Local : dt.Kind;
                                 var dto = DateTime.SpecifyKind(dt, kind);
-                                var unix = new DateTimeOffset(dto.ToUniversalTime()).ToUnixTimeSeconds();
+                                var unix = new DateTimeOffset(dto).ToUnixTimeSeconds();
                                 return $"<t:{unix}:f>";
                             }
 
                             var accent = status.Online ? new Color(0, 180, 170) : new Color(220, 20, 60);
-                            string FormatUtc(DateTime dt) => dt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'");
 
                             // Lookup existing message metadata (if any)
                             _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
                             _persistence.State.MessageMetadata.TryGetValue(name, out var meta);
 
-                            // Use local PC time for the embed so Discord will render it in viewer local time
+                            // Use server local time for any embed-level tokens (Discord will render them in viewer timezone)
                             var now = DateTimeOffset.Now;
                             var unix = now.ToUnixTimeSeconds();
-                            var embedToken = $"<t:{unix}:f>";                
-
                             var embed = new EmbedBuilder()
                                 .WithTitle($"{name} Status")
                                 .WithDescription($"**Status:** {(status.Online ? "🟢 Online" : "🔴 Offline")}\n**Uptime:** {status.UptimePercent:F2}%")
