@@ -18,7 +18,7 @@ setlocal EnableDelayedExpansion
 set "SELF_CONTAINED=false"
 set "SINGLE_FILE=false"
 set "TRIM=false"
-set "CLEAN=false"
+set "CLEAN=true"
 set "ZIP=false"
 set "DRY_RUN=false"
 set "PARALLEL=false"
