@@ -76,22 +76,58 @@ public class DiscordUpdater : BackgroundService
                                 .WithCurrentTimestamp()
                                 .Build();
 
-                            ulong messageId = 0;
-                            _persistence.State.Messages.TryGetValue(name, out messageId);
-                            IUserMessage? msg = null;
-                            if (messageId != 0)
+                            // Support migration from legacy Messages -> MessageMetadata
+                            ServiceStatusBot.Models.MessageReference? meta = null;
+                            if (_persistence.State.MessageMetadata != null && _persistence.State.MessageMetadata.TryGetValue(name, out var existingMeta))
                             {
-                                msg = await channel.GetMessageAsync(messageId) as IUserMessage;
+                                meta = existingMeta;
+                            }
+                            else if (_persistence.State.Messages != null && _persistence.State.Messages.TryGetValue(name, out var legacyId) && legacyId != 0)
+                            {
+                                // Try to fetch legacy message; if found migrate into metadata
+                                try
+                                {
+                                    var legacyMsg = await channel.GetMessageAsync(legacyId) as IUserMessage;
+                                    if (legacyMsg != null)
+                                    {
+                                        meta = new ServiceStatusBot.Models.MessageReference { Id = legacyMsg.Id, LastUpdatedUtc = DateTime.UtcNow };
+                                        _persistence.State.MessageMetadata[name] = meta;
+                                        _persistence.State.Messages.Remove(name);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    ErrorHelper.LogWarning($"Could not fetch legacy message {legacyId} for service {name}: {ex.Message}");
+                                }
+                            }
+
+                            IUserMessage? msg = null;
+                            if (meta != null && meta.Id != 0)
+                            {
+                                try
+                                {
+                                    msg = await channel.GetMessageAsync(meta.Id) as IUserMessage;
+                                }
+                                catch (Exception ex)
+                                {
+                                    ErrorHelper.LogWarning($"Failed to fetch stored message {meta.Id} for service {name}: {ex.Message}");
+                                    msg = null;
+                                }
                             }
 
                             if (msg == null)
                             {
                                 var newMsg = await channel.SendMessageAsync(embed: embed);
-                                _persistence.State.Messages[name] = newMsg.Id;
+                                var newMeta = new ServiceStatusBot.Models.MessageReference { Id = newMsg.Id, LastUpdatedUtc = DateTime.UtcNow };
+                                _persistence.State.MessageMetadata[name] = newMeta;
                             }
                             else
                             {
                                 await msg.ModifyAsync(m => m.Embed = embed);
+                                // update metadata timestamp
+                                meta = meta ?? new ServiceStatusBot.Models.MessageReference { Id = msg.Id };
+                                meta.LastUpdatedUtc = DateTime.UtcNow;
+                                _persistence.State.MessageMetadata[name] = meta;
                             }
                         }
                         catch (OperationCanceledException)

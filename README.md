@@ -74,3 +74,34 @@ Next improvements (recommended)
 - Add unit tests for Persistence and ConfigManager
 
 See `BUILDING.md` for detailed publish script usage and examples.
+
+Inspecting state.json
+---------------------
+
+StatusBot persists runtime state in a `state.json` file next to the running process. Recent versions store a few helpful pieces of information you can inspect when diagnosing issues:
+
+- `MessageMetadata`: a dictionary (service name -> object) containing the last Discord message info for each service. Each entry looks like:
+	- `Id` (ulong) — the Discord message id that StatusBot posts/updates for a service
+	- `LastUpdatedUtc` (ISO UTC timestamp) — when the bot last successfully updated that message
+
+- `Statuses`: a dictionary (service name -> object) containing monitoring information. Important fields:
+	- `Online` (bool) — last observed online state
+	- `LastChange` (UTC timestamp) — when the status last flipped (up↔down)
+	- `LastChecked` (UTC timestamp) — when the service was last polled
+	- `MonitoringSince` (UTC timestamp) — when StatusBot began tracking this service (persisted so uptime survives restarts)
+	- `CumulativeUpSeconds` (number) — total seconds observed "up" since `MonitoringSince`
+	- `UptimePercent` (number) — calculated as CumulativeUpSeconds / (now - MonitoringSince) * 100
+
+Backward compatibility / migration
+- Older versions used a simple `Messages` dictionary (service name -> message id). On startup the bot will automatically migrate those legacy entries into `MessageMetadata` (preserving the id and stamping `LastUpdatedUtc` with the migration time). You may see the legacy `Messages` entries briefly until migration completes.
+
+How to inspect
+- From a shell you can pretty-print the file (example using PowerShell):
+
+```powershell
+Get-Content state.json | ConvertFrom-Json | Select-Object -Property MessageMetadata, Statuses | ConvertTo-Json -Depth 5
+```
+
+- Or open `state.json` in any editor (it's pretty-printed by the application) and look for the fields above.
+
+If you need help interpreting a particular entry, paste the relevant small JSON snippet and I can explain what it means.

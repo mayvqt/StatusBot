@@ -82,17 +82,40 @@ public class StatusMonitor : BackgroundService
                     }
 
                     // Update status
+                    var now = DateTime.UtcNow;
                     if (_statusStore.Statuses.TryGetValue(service.Name, out var prevStatus))
                     {
-                        status.LastChange = prevStatus.Online != online ? DateTime.UtcNow : prevStatus.LastChange;
-                        status.UptimePercent = prevStatus.UptimePercent; // TODO: Calculate uptime
+                        // carry-forward monitoring start and cumulative counters
+                        status.MonitoringSince = prevStatus.MonitoringSince;
+                        status.CumulativeUpSeconds = prevStatus.CumulativeUpSeconds;
+                        status.TotalChecks = prevStatus.TotalChecks + 1;
+
+                        // time since last check -> attribute to previous state
+                        var elapsed = (now - prevStatus.LastChecked).TotalSeconds;
+                        if (elapsed < 0) elapsed = 0;
+                        if (prevStatus.Online)
+                        {
+                            status.CumulativeUpSeconds += elapsed;
+                        }
+
+                        // update last change timestamp if state flipped
+                        status.LastChange = prevStatus.Online != online ? now : prevStatus.LastChange;
+
+                        // compute uptime percent over monitoring window
+                        var totalObserved = (now - status.MonitoringSince).TotalSeconds;
+                        status.UptimePercent = totalObserved > 0 ? (status.CumulativeUpSeconds / totalObserved) * 100.0 : (online ? 100.0 : 0.0);
                     }
                     else
                     {
-                        status.LastChange = DateTime.UtcNow;
+                        status.MonitoringSince = now;
+                        status.LastChange = now;
+                        status.CumulativeUpSeconds = online ? 0.0 : 0.0; // we will add elapsed on next check
+                        status.TotalChecks = 1;
                         status.UptimePercent = online ? 100.0 : 0.0;
                     }
+
                     status.Online = online;
+                    status.LastChecked = now;
                     _statusStore.Statuses[service.Name] = status;
                 }
                 catch (OperationCanceledException)
