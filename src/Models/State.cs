@@ -10,6 +10,11 @@ public class State
 
     /// <summary>Last-known status objects keyed by service name.</summary>
     public Dictionary<string, ServiceStatus> Statuses { get; set; } = new();
+
+    /// <summary>
+    /// State file format version. Increment when making incompatible changes to the persisted shape.
+    /// </summary>
+    public string Version { get; set; } = "1";
 }
 
 /// <summary>

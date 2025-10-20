@@ -125,6 +125,20 @@ public class StatusMonitor : BackgroundService
                     status.Online = online;
                     status.LastChecked = now;
                     _statusStore.Statuses[service.Name] = status;
+
+                    // Also persist the status into the saved State so SaveState() writes it to disk.
+                    _persistence.State.Statuses ??= new Dictionary<string, ServiceStatus>();
+                    _persistence.State.Statuses[service.Name] = status;
+
+                    // Persist immediately to reduce the window of lost updates if the process is killed.
+                    try
+                    {
+                        _persistence.SaveState();
+                    }
+                    catch (Exception ex)
+                    {
+                        ErrorHelper.LogWarning($"Failed to persist state after updating service '{service.Name}': {ex.Message}");
+                    }
                 }
                 catch (OperationCanceledException)
                 {

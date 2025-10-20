@@ -14,10 +14,11 @@ public static class SetupHelper
     /// </summary>
     public static void EnsureConfigAndState()
     {
-        try
-        {
-            Directory.CreateDirectory("config");
-            var configPath = Path.Combine("config", "config.json");
+            try
+            {
+                var configDir = Path.Combine(AppContext.BaseDirectory ?? ".", "config");
+                Directory.CreateDirectory(configDir);
+                var configPath = Path.Combine(configDir, "config.json");
             if (!File.Exists(configPath))
             {
                 var defaultConfig = new Config
@@ -35,14 +36,44 @@ public static class SetupHelper
                 File.WriteAllText(configPath, JsonConvert.SerializeObject(defaultConfig, Formatting.Indented));
             }
 
-            var statePath = Path.Combine("config", "state.json");
+            var statePath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "state.json");
             if (!File.Exists(statePath))
             {
+                // Read the config to seed initial statuses for each configured service.
+                Config? cfg = null;
+                try
+                {
+                    var cfgJson = File.ReadAllText(configPath);
+                    cfg = JsonConvert.DeserializeObject<Config>(cfgJson) ?? new Config();
+                }
+                catch
+                {
+                    cfg = new Config();
+                }
+
+                var initialStatuses = new Dictionary<string, ServiceStatus>();
+                var now = DateTime.Now;
+                foreach (var svc in cfg.Services ?? new List<ServiceDefinition>())
+                {
+                    if (string.IsNullOrWhiteSpace(svc.Name)) continue;
+                    initialStatuses[svc.Name] = new ServiceStatus
+                    {
+                        Online = false,
+                        LastChecked = now,
+                        LastChange = now,
+                        MonitoringSince = now,
+                        CumulativeUpSeconds = 0.0,
+                        TotalChecks = 0,
+                        UptimePercent = 0.0
+                    };
+                }
+
                 var defaultState = new State
                 {
                     MessageMetadata = new Dictionary<string, MessageReference>(),
-                    Statuses = new Dictionary<string, ServiceStatus>()
+                    Statuses = initialStatuses
                 };
+
                 File.WriteAllText(statePath, JsonConvert.SerializeObject(defaultState, Formatting.Indented));
             }
         }

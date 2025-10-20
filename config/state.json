@@ -1,0 +1,33 @@
+{
+  "Version": "1",
+  "MessageMetadata": {},
+  "Statuses": {
+    "MainSite": {
+      "Online": false,
+      "LastChange": "2025-10-20T12:00:00Z",
+      "LastChecked": "2025-10-20T12:00:00Z",
+      "UptimePercent": 0.0,
+      "MonitoringSince": "2025-10-20T12:00:00Z",
+      "CumulativeUpSeconds": 0.0,
+      "TotalChecks": 0
+    },
+    "API": {
+      "Online": false,
+      "LastChange": "2025-10-20T12:00:00Z",
+      "LastChecked": "2025-10-20T12:00:00Z",
+      "UptimePercent": 0.0,
+      "MonitoringSince": "2025-10-20T12:00:00Z",
+      "CumulativeUpSeconds": 0.0,
+      "TotalChecks": 0
+    },
+    "DNS": {
+      "Online": false,
+      "LastChange": "2025-10-20T12:00:00Z",
+      "LastChecked": "2025-10-20T12:00:00Z",
+      "UptimePercent": 0.0,
+      "MonitoringSince": "2025-10-20T12:00:00Z",
+      "CumulativeUpSeconds": 0.0,
+      "TotalChecks": 0
+    }
+  }
+}

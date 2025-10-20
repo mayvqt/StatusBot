@@ -10,7 +10,7 @@ namespace ServiceStatusBot.Services;
 public class ConfigManager
 {
     public Config Config { get; private set; } = new();
-    private readonly string _configPath = Path.Combine("config", "config.json");
+    private readonly string _configPath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "config.json");
     private FileSystemWatcher? _watcher;
     public event Action? ConfigChanged;
 
