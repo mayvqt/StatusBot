@@ -66,14 +66,14 @@ public class DiscordUpdater : BackgroundService
                             var name = kvp.Key;
                             var status = kvp.Value;
                             string DiscordTimestamp(DateTime dt) => $"<t:{new DateTimeOffset(dt).ToUnixTimeSeconds()}:f>";
+                            var accent = status.Online ? new Color(0, 180, 170) : new Color(220, 20, 60); // teal when online, red when offline
                             var embed = new EmbedBuilder()
                                 .WithTitle($"{name} Status")
                                 .WithDescription($"**Status:** {(status.Online ? "🟢 Online" : "🔴 Offline")}\n**Uptime:** {status.UptimePercent:F2}%")
                                 .AddField("Last Change", DiscordTimestamp(status.LastChange), true)
                                 .AddField("Last Checked", DiscordTimestamp(status.LastChecked), true)
-                                .WithColor(new Color(0, 180, 170)) // Teal accent, dark
+                                .WithColor(accent)
                                 .WithFooter(footer => footer.Text = "StatusBot")
-                                .WithCurrentTimestamp()
                                 .Build();
 
                             // Support migration from legacy Messages -> MessageMetadata
