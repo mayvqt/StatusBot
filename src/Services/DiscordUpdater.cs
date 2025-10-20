@@ -84,13 +84,14 @@ public class DiscordUpdater : BackgroundService
 
                             // Use local PC time for the embed so Discord will render it in viewer local time
                             var now = DateTimeOffset.Now;
-                            var embedToken = $"<t:{now.ToUnixTimeSeconds()}:f>";
+                            var unix = now.ToUnixTimeSeconds();
+                            var embedToken = $"<t:{unix}:f>";                
 
                             var embed = new EmbedBuilder()
                                 .WithTitle($"{name} Status")
                                 .WithDescription($"**Status:** {(status.Online ? "🟢 Online" : "🔴 Offline")}\n**Uptime:** {status.UptimePercent:F2}%")
-                                .AddField("Last Change", $"{DiscordTimestamp(status.LastChange)} ({FormatUtc(status.LastChange)})", true)
-                                .AddField("Updated", $"{embedToken}", true)
+                                .AddField("Last Change", DiscordTimestamp(status.LastChange), true)
+                                .AddField("Last Checked", DiscordTimestamp(status.LastChecked), true)
                                 .WithColor(accent)
                                 .WithFooter(footer => footer.Text = "Status Bot")
                                 .Build();
