@@ -5,7 +5,7 @@ namespace ServiceStatusBot.Services;
 
 public class Persistence
 {
-    private readonly string _statePath = "state.json";
+    private readonly string _statePath = Path.Combine("config", "state.json");
     public State State { get; private set; } = new();
     private readonly object _saveLock = new();
 
@@ -29,7 +29,8 @@ public class Persistence
             if (File.Exists(_statePath))
             {
                 var json = File.ReadAllText(_statePath);
-                var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc };
+                // Preserve the DateTime Kind (Local/Utc) roundtrip so stored times keep their original Kind
+                var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind };
                 State = JsonConvert.DeserializeObject<State>(json, settings) ?? new State();
                 // Defensive: ensure collections are non-null after deserialization
                 State.MessageMetadata ??= new Dictionary<string, MessageReference>();
@@ -51,7 +52,7 @@ public class Persistence
             try
             {
                 var tempPath = _statePath + ".tmp";
-                var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc };
+                var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind };
                 File.WriteAllText(tempPath, JsonConvert.SerializeObject(State, Formatting.Indented, settings));
 
                 // If destination exists try an atomic replace first. If that fails (locked file etc.)

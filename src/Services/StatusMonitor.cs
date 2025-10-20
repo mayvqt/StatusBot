@@ -8,6 +8,7 @@ public class StatusMonitor : BackgroundService
     private readonly ConfigManager _configManager;
     private readonly StatusStore _statusStore;
     private readonly Persistence _persistence;
+    private readonly HttpClient _httpClient = new();
 
     public StatusMonitor(ConfigManager configManager, StatusStore statusStore, Persistence persistence)
     {
@@ -31,7 +32,7 @@ public class StatusMonitor : BackgroundService
                     }
 
                     var status = new ServiceStatus();
-                    status.LastChecked = DateTime.UtcNow;
+                    status.LastChecked = DateTime.Now;
                     bool online = false;
 
                     try
@@ -42,8 +43,7 @@ public class StatusMonitor : BackgroundService
                             case "HTTP":
                                 if (!string.IsNullOrEmpty(service.Url))
                                 {
-                                    using var httpClient = new HttpClient();
-                                    var response = await httpClient.GetAsync(service.Url, stoppingToken);
+                                    var response = await _httpClient.GetAsync(service.Url, stoppingToken);
                                     // Only treat 2xx as online
                                     online = ((int)response.StatusCode >= 200 && (int)response.StatusCode < 300);
                                 }
@@ -82,7 +82,7 @@ public class StatusMonitor : BackgroundService
                     }
 
                     // Update status
-                    var now = DateTime.UtcNow;
+                    var now = DateTime.Now;
                     if (_statusStore.Statuses.TryGetValue(service.Name, out var prevStatus))
                     {
                         // carry-forward monitoring start and cumulative counters
