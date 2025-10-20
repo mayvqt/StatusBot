@@ -12,6 +12,8 @@ REM   --project <path>   Path to .csproj or project directory. Defaults to ./src
 REM
 setlocal EnableDelayedExpansion
 
+:: (No delegation) This batch file is the canonical Windows build wrapper.
+
 :: Default options
 set "SELF_CONTAINED=false"
 set "SINGLE_FILE=false"
@@ -141,7 +143,7 @@ if "%SINGLE_FILE%"=="true" set "OPTS=%OPTS% -p:PublishSingleFile=true"
 if "%TRIM%"=="true" set "OPTS=%OPTS% -p:PublishTrimmed=true"
 
 :: RIDs to publish for
-:: Expand comma-separated RIDS into tokens
+:: Expand comma-separated RIDS into tokens and call a subroutine to avoid nested-paren parsing issues
 set "_rids=%RIDS%"
 set "_rids=!_rids:,= !"
 
@@ -150,30 +152,40 @@ if "%PARALLEL%"=="true" (
 )
 
 for %%R in (!_rids!) do (
-    set "OUTDIR=%SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\net8.0\%%R\publish"
-    echo.
-    echo Publishing for %%R to !OUTDIR!
-    echo Running: dotnet publish "!PUBLISH_TARGET!" -c "%CONFIG%" -r "%%R" -o "!OUTDIR!" !OPTS!
-    if "%DRY_RUN%"=="true" (
-        echo Dry-run: skipping dotnet publish for %%R
-    ) else (
-        dotnet publish "!PUBLISH_TARGET!" -c "%CONFIG%" -r "%%R" -o "!OUTDIR!" !OPTS!
-    )
-    if ERRORLEVEL 1 (
-        echo Publish for %%R failed with exit code %ERRORLEVEL%
-        endlocal
-        exit /b %ERRORLEVEL%
-    )
+    call :PublishOne %%R
+)
 
-    if "%ZIP%"=="true" (
-        if "%DRY_RUN%"=="true" (
-            echo Dry-run: would zip !OUTDIR! to %SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\%%R.zip
-        ) else (
-            echo Creating zip for %%R
-            powershell -NoProfile -Command "Compress-Archive -Path '"!OUTDIR!\*' -DestinationPath '%SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\%%R.zip' -Force"
-        )
+goto :after_publishes
+
+:PublishOne
+rem %1 is RID
+set "RID=%~1"
+set "OUTDIR=%SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\net8.0\%RID%\publish"
+echo.
+echo Publishing for %RID% to %OUTDIR%
+echo Running: dotnet publish "%PUBLISH_TARGET%" -c "%CONFIG%" -r "%RID%" -o "%OUTDIR%" %OPTS%
+if "%DRY_RUN%"=="true" (
+    echo Dry-run: skipping dotnet publish for %RID%
+    goto :eof
+)
+dotnet publish "%PUBLISH_TARGET%" -c "%CONFIG%" -r "%RID%" -o "%OUTDIR%" %OPTS%
+if ERRORLEVEL 1 (
+    echo Publish for %RID% failed with exit code %ERRORLEVEL%
+    endlocal
+    exit /b %ERRORLEVEL%
+)
+
+if "%ZIP%"=="true" (
+    if "%DRY_RUN%"=="true" (
+        echo Dry-run: would zip %OUTDIR% to %SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\%RID%.zip
+    ) else (
+        echo Creating zip for %RID%
+        powershell -NoProfile -Command "Compress-Archive -Path '%OUTDIR%\*' -DestinationPath '%SCRIPT_DIR%build\%PROJECT_NAME%\%CONFIG%\%RID%.zip' -Force"
     )
 )
+goto :eof
+
+:after_publishes
 
 echo All publishes completed.
 endlocal
