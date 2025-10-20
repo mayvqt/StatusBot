@@ -8,7 +8,10 @@ public class StatusMonitor : BackgroundService
     private readonly ConfigManager _configManager;
     private readonly StatusStore _statusStore;
     private readonly Persistence _persistence;
-    private readonly HttpClient _httpClient = new();
+    private static readonly HttpClient _httpClient = new HttpClient()
+    {
+        Timeout = TimeSpan.FromSeconds(10)
+    };
 
     public StatusMonitor(ConfigManager configManager, StatusStore statusStore, Persistence persistence)
     {
