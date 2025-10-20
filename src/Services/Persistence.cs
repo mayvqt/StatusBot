@@ -30,6 +30,10 @@ public class Persistence
             {
                 var json = File.ReadAllText(_statePath);
                 State = JsonConvert.DeserializeObject<State>(json) ?? new State();
+                // Defensive: ensure collections are non-null after deserialization
+                State.Messages ??= new Dictionary<string, ulong>();
+                State.MessageMetadata ??= new Dictionary<string, MessageReference>();
+                State.Statuses ??= new Dictionary<string, ServiceStatus>();
                 // Migrate legacy Messages dictionary into MessageMetadata if present
                 try
                 {

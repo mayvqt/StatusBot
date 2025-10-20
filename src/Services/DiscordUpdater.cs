@@ -91,6 +91,7 @@ public class DiscordUpdater : BackgroundService
                                     if (legacyMsg != null)
                                     {
                                         meta = new ServiceStatusBot.Models.MessageReference { Id = legacyMsg.Id, LastUpdatedUtc = DateTime.UtcNow };
+                                        _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
                                         _persistence.State.MessageMetadata[name] = meta;
                                         _persistence.State.Messages.Remove(name);
                                     }
@@ -119,6 +120,7 @@ public class DiscordUpdater : BackgroundService
                             {
                                 var newMsg = await channel.SendMessageAsync(embed: embed);
                                 var newMeta = new ServiceStatusBot.Models.MessageReference { Id = newMsg.Id, LastUpdatedUtc = DateTime.UtcNow };
+                                _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
                                 _persistence.State.MessageMetadata[name] = newMeta;
                             }
                             else
@@ -127,6 +129,7 @@ public class DiscordUpdater : BackgroundService
                                 // update metadata timestamp
                                 meta = meta ?? new ServiceStatusBot.Models.MessageReference { Id = msg.Id };
                                 meta.LastUpdatedUtc = DateTime.UtcNow;
+                                _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
                                 _persistence.State.MessageMetadata[name] = meta;
                             }
                         }
