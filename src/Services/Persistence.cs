@@ -29,9 +29,9 @@ public class Persistence
             if (File.Exists(_statePath))
             {
                 var json = File.ReadAllText(_statePath);
-                State = JsonConvert.DeserializeObject<State>(json) ?? new State();
+                var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc };
+                State = JsonConvert.DeserializeObject<State>(json, settings) ?? new State();
                 // Defensive: ensure collections are non-null after deserialization
-                State.Messages ??= new Dictionary<string, ulong>();
                 State.MessageMetadata ??= new Dictionary<string, MessageReference>();
                 State.Statuses ??= new Dictionary<string, ServiceStatus>();
                 // No migration required when running fresh; keep collections initialized.
@@ -51,7 +51,8 @@ public class Persistence
             try
             {
                 var tempPath = _statePath + ".tmp";
-                File.WriteAllText(tempPath, JsonConvert.SerializeObject(State, Formatting.Indented));
+                var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc };
+                File.WriteAllText(tempPath, JsonConvert.SerializeObject(State, Formatting.Indented, settings));
 
                 // If destination exists try an atomic replace first. If that fails (locked file etc.)
                 // fall back to delete+move with a few retries.

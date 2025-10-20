@@ -92,8 +92,7 @@ StatusBot persists runtime state in a `state.json` file next to the running proc
 	- `CumulativeUpSeconds` (number) — total seconds observed "up" since `MonitoringSince`
 	- `UptimePercent` (number) — calculated as CumulativeUpSeconds / (now - MonitoringSince) * 100
 
-Backward compatibility / migration
-- Older versions used a simple `Messages` dictionary (service name -> message id). On startup the bot will automatically migrate those legacy entries into `MessageMetadata` (preserving the id and stamping `LastUpdatedUtc` with the migration time). You may see the legacy `Messages` entries briefly until migration completes.
+
 
 How to inspect
 - From a shell you can pretty-print the file (example using PowerShell):

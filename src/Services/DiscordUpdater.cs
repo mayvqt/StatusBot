@@ -65,42 +65,35 @@ public class DiscordUpdater : BackgroundService
                         {
                             var name = kvp.Key;
                             var status = kvp.Value;
-                            string DiscordTimestamp(DateTime dt) => $"<t:{new DateTimeOffset(dt).ToUnixTimeSeconds()}:f>";
-                            var accent = status.Online ? new Color(0, 180, 170) : new Color(220, 20, 60); // teal when online, red when offline
+
+                            // Helper: produce a Discord <t:...> token from a DateTime (treat Unspecified as UTC)
+                            string DiscordTimestamp(DateTime dt)
+                            {
+                                var kind = dt.Kind == DateTimeKind.Unspecified ? DateTimeKind.Utc : dt.Kind;
+                                var dto = DateTime.SpecifyKind(dt, kind);
+                                var unix = new DateTimeOffset(dto.ToUniversalTime()).ToUnixTimeSeconds();
+                                return $"<t:{unix}:f>";
+                            }
+
+                            var accent = status.Online ? new Color(0, 180, 170) : new Color(220, 20, 60);
+                            string FormatUtc(DateTime dt) => dt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'");
+
+                            // Lookup existing message metadata (if any)
+                            _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
+                            _persistence.State.MessageMetadata.TryGetValue(name, out var meta);
+
+                            // Use local PC time for the embed so Discord will render it in viewer local time
+                            var now = DateTimeOffset.Now;
+                            var embedToken = $"<t:{now.ToUnixTimeSeconds()}:f>";
+
                             var embed = new EmbedBuilder()
                                 .WithTitle($"{name} Status")
                                 .WithDescription($"**Status:** {(status.Online ? "🟢 Online" : "🔴 Offline")}\n**Uptime:** {status.UptimePercent:F2}%")
-                                .AddField("Last Change", DiscordTimestamp(status.LastChange), true)
-                                .AddField("Last Checked", DiscordTimestamp(status.LastChecked), true)
+                                .AddField("Last Change", $"{DiscordTimestamp(status.LastChange)} ({FormatUtc(status.LastChange)})", true)
+                                .AddField("Updated", $"{embedToken} ({now.UtcDateTime:yyyy-MM-dd HH:mm 'UTC'})", true)
                                 .WithColor(accent)
                                 .WithFooter(footer => footer.Text = "StatusBot")
                                 .Build();
-
-                            // Support migration from legacy Messages -> MessageMetadata
-                            ServiceStatusBot.Models.MessageReference? meta = null;
-                            if (_persistence.State.MessageMetadata != null && _persistence.State.MessageMetadata.TryGetValue(name, out var existingMeta))
-                            {
-                                meta = existingMeta;
-                            }
-                            else if (_persistence.State.Messages != null && _persistence.State.Messages.TryGetValue(name, out var legacyId) && legacyId != 0)
-                            {
-                                // Try to fetch legacy message; if found migrate into metadata
-                                try
-                                {
-                                    var legacyMsg = await channel.GetMessageAsync(legacyId) as IUserMessage;
-                                    if (legacyMsg != null)
-                                    {
-                                        meta = new ServiceStatusBot.Models.MessageReference { Id = legacyMsg.Id, LastUpdatedUtc = DateTime.UtcNow };
-                                        _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
-                                        _persistence.State.MessageMetadata[name] = meta;
-                                        _persistence.State.Messages.Remove(name);
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    ErrorHelper.LogWarning($"Could not fetch legacy message {legacyId} for service {name}: {ex.Message}");
-                                }
-                            }
 
                             IUserMessage? msg = null;
                             if (meta != null && meta.Id != 0)
@@ -120,16 +113,13 @@ public class DiscordUpdater : BackgroundService
                             {
                                 var newMsg = await channel.SendMessageAsync(embed: embed);
                                 var newMeta = new ServiceStatusBot.Models.MessageReference { Id = newMsg.Id, LastUpdatedUtc = DateTime.UtcNow };
-                                _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
                                 _persistence.State.MessageMetadata[name] = newMeta;
                             }
                             else
                             {
                                 await msg.ModifyAsync(m => m.Embed = embed);
-                                // update metadata timestamp
                                 meta = meta ?? new ServiceStatusBot.Models.MessageReference { Id = msg.Id };
                                 meta.LastUpdatedUtc = DateTime.UtcNow;
-                                _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
                                 _persistence.State.MessageMetadata[name] = meta;
                             }
                         }
