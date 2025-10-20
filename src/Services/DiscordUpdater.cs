@@ -5,19 +5,30 @@ using Discord.WebSocket;
 
 namespace ServiceStatusBot.Services;
 
+/// <summary>
+/// Background service that ensures per-service status messages are posted/updated to Discord.
+/// The service will reuse a single Discord client instance and persist message references
+/// so messages are updated rather than recreated across restarts.
+/// </summary>
 public class DiscordUpdater : BackgroundService
 {
     private readonly StatusStore _statusStore;
     private readonly Persistence _persistence;
     private readonly ConfigManager _configManager;
+    private readonly RateLimiter _rateLimiter;
 
-    public DiscordUpdater(StatusStore statusStore, Persistence persistence, ConfigManager configManager)
+    public DiscordUpdater(StatusStore statusStore, Persistence persistence, ConfigManager configManager, RateLimiter rateLimiter)
     {
         _statusStore = statusStore;
         _persistence = persistence;
         _configManager = configManager;
+        _rateLimiter = rateLimiter;
     }
 
+    /// <summary>
+    /// Main loop: connect to Discord, ensure configured channel exists, and iterate over
+    /// monitored services to create or update a message per-service.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -106,6 +117,23 @@ public class DiscordUpdater : BackgroundService
                                     ErrorHelper.LogWarning($"Failed to fetch stored message {meta.Id} for service {name}: {ex.Message}");
                                     msg = null;
                                 }
+                            }
+
+                            // Respect per-message cooldown to avoid rapid updates and a global rate limiter.
+                            // We use a conservative cooldown to reduce API traffic and keep state file writes low.
+                            var cooldown = TimeSpan.FromSeconds(5);
+                            var canUpdateByTime = meta == null || (DateTime.UtcNow - meta.LastUpdatedUtc) >= cooldown;
+                            if (!canUpdateByTime)
+                            {
+                                // Skip this update; it's too soon since last update
+                                continue;
+                            }
+
+                            if (!_rateLimiter.TryConsume())
+                            {
+                                // Rate limiter denied this operation; skip this update
+                                ErrorHelper.LogWarning("RateLimiter: throttling Discord updates; skipping an update.");
+                                continue;
                             }
 
                             if (msg == null)

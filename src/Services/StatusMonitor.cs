@@ -3,11 +3,16 @@ using ServiceStatusBot.Models;
 
 namespace ServiceStatusBot.Services;
 
+/// <summary>
+/// Background service that polls configured services and updates their <see cref="ServiceStatus"/>.
+/// The monitor records timestamps and accumulates 'up' time so uptime percentages persist across restarts.
+/// </summary>
 public class StatusMonitor : BackgroundService
 {
     private readonly ConfigManager _configManager;
     private readonly StatusStore _statusStore;
     private readonly Persistence _persistence;
+    // Shared HttpClient for all HTTP checks to avoid socket exhaustion and reduce allocations.
     private static readonly HttpClient _httpClient = new HttpClient()
     {
         Timeout = TimeSpan.FromSeconds(10)

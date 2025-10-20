@@ -6,6 +6,11 @@ using Microsoft.AspNetCore.Http;
 
 namespace ServiceStatusBot.Services;
 
+/// <summary>
+/// Lightweight API host that exposes the current status map via a minimal HTTP API.
+/// This is intended for local inspection and health checks and runs in the same process
+/// as the monitoring services.
+/// </summary>
 public class ApiHost : BackgroundService
 {
     private readonly StatusStore _statusStore;
@@ -15,6 +20,10 @@ public class ApiHost : BackgroundService
         _statusStore = statusStore;
     }
 
+    /// <summary>
+    /// Starts a minimal WebApplication containing two endpoints:
+    /// <c>/api/status</c> and <c>/api/status/{service}</c>.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try

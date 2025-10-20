@@ -4,25 +4,55 @@ using Serilog;
 
 namespace ServiceStatusBot.Services;
 
+/// <summary>
+/// Lightweight logging helper that routes to Serilog's static logger. If Serilog is not yet
+/// configured the methods will catch exceptions to avoid bringing down the host during startup.
+/// </summary>
 internal static class ErrorHelper
 {
-    // Use Serilog static logger directly. If Serilog isn't configured yet, fallback to Console.
+    /// <summary>Log an informational message.</summary>
     public static void Log(string message)
     {
-        Serilog.Log.Information(message);
+        try
+        {
+            Serilog.Log.Information(message);
+        }
+        catch
+        {
+            // In early startup Serilog may not be ready; swallow failures to avoid crashing the host.
+        }
     }
 
+    /// <summary>Log a warning message.</summary>
     public static void LogWarning(string message)
     {
-        Serilog.Log.Warning(message);
+        try
+        {
+            Serilog.Log.Warning(message);
+        }
+        catch
+        {
+            // Swallow; we're best-effort here.
+        }
     }
 
+    /// <summary>Log an error message with an optional exception.</summary>
     public static void LogError(string message, Exception? ex = null)
     {
-        if (ex != null) Serilog.Log.Error(ex, message);
-        else Serilog.Log.Error(message);
+        try
+        {
+            if (ex != null) Serilog.Log.Error(ex, message);
+            else Serilog.Log.Error(message);
+        }
+        catch
+        {
+            // Swallow to avoid recursive failures during logger setup.
+        }
     }
 
+    /// <summary>
+    /// Execute a function and return a fallback value on exception. Errors are logged.
+    /// </summary>
     public static T? Safe<T>(Func<T> func, T? fallback = default)
     {
         try
@@ -36,6 +66,7 @@ internal static class ErrorHelper
         }
     }
 
+    /// <summary>Execute an action and log any uncaught exceptions.</summary>
     public static void Safe(Action action)
     {
         try

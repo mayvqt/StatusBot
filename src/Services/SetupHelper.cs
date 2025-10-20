@@ -3,8 +3,15 @@ using Newtonsoft.Json;
 
 namespace ServiceStatusBot.Services;
 
+/// <summary>
+/// Helper used at startup to ensure the <c>config</c> directory and default config/state files exist.
+/// This is a convenience for first-time runs and tests; in production you may provide your own files.
+/// </summary>
 public static class SetupHelper
 {
+    /// <summary>
+    /// Ensure default configuration and state files exist. If missing, write simple defaults.
+    /// </summary>
     public static void EnsureConfigAndState()
     {
         try

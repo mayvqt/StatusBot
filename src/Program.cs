@@ -5,6 +5,8 @@ using Serilog.Events;
 using ServiceStatusBot.Models;
 using ServiceStatusBot.Services;
 
+// Application entrypoint and host setup. We configure logging, create the DI container
+// and register the background services used by the application.
 try
 {
     SetupHelper.EnsureConfigAndState();
@@ -20,9 +22,13 @@ try
         .UseSerilog()
         .ConfigureServices((context, services) =>
         {
+            // Core singletons
             services.AddSingleton<ConfigManager>();
             services.AddSingleton<StatusStore>();
             services.AddSingleton<Persistence>();
+            services.AddSingleton<RateLimiter>();
+
+            // Background workers
             services.AddHostedService<StatusMonitor>();
             services.AddHostedService<DiscordUpdater>();
             services.AddHostedService<ApiHost>();

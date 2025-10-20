@@ -3,6 +3,10 @@ using ServiceStatusBot.Models;
 
 namespace ServiceStatusBot.Services;
 
+/// <summary>
+/// Loads the application's configuration from <c>config/config.json</c> and watches the file for changes.
+/// Consumers can subscribe to the <see cref="ConfigChanged"/> event to react to runtime updates.
+/// </summary>
 public class ConfigManager
 {
     public Config Config { get; private set; } = new();
