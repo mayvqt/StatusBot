@@ -33,7 +33,7 @@ public static class SetupHelper
             {
                 var defaultState = new State
                 {
-                    Messages = new Dictionary<string, ulong>(),
+                    MessageMetadata = new Dictionary<string, MessageReference>(),
                     Statuses = new Dictionary<string, ServiceStatus>()
                 };
                 File.WriteAllText(statePath, JsonConvert.SerializeObject(defaultState, Formatting.Indented));

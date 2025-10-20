@@ -34,28 +34,7 @@ public class Persistence
                 State.Messages ??= new Dictionary<string, ulong>();
                 State.MessageMetadata ??= new Dictionary<string, MessageReference>();
                 State.Statuses ??= new Dictionary<string, ServiceStatus>();
-                // Migrate legacy Messages dictionary into MessageMetadata if present
-                try
-                {
-                    if (State.Messages != null && State.MessageMetadata != null)
-                    {
-                        foreach (var kvp in State.Messages.ToList())
-                        {
-                            var name = kvp.Key;
-                            var id = kvp.Value;
-                            if (id != 0 && !State.MessageMetadata.ContainsKey(name))
-                            {
-                                State.MessageMetadata[name] = new MessageReference { Id = id, LastUpdatedUtc = DateTime.UtcNow };
-                            }
-                            // remove legacy entry after migration
-                            State.Messages.Remove(name);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    ErrorHelper.LogWarning($"Failed to migrate legacy messages to message metadata: {ex.Message}");
-                }
+                // No migration required when running fresh; keep collections initialized.
             }
         }
         catch (Exception ex)

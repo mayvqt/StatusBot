@@ -1,26 +1,47 @@
 using System;
+using System;
+using Serilog;
 
 namespace ServiceStatusBot.Services;
 
 internal static class ErrorHelper
 {
-    // Centralized simple logging to console for now.
+    // Use Serilog static logger directly. If Serilog isn't configured yet, fallback to Console.
     public static void Log(string message)
     {
-        Console.WriteLine($"[Info] {DateTime.UtcNow:O} - {message}");
+        try
+        {
+            Serilog.Log.Information(message);
+        }
+        catch
+        {
+            Console.WriteLine($"[Info] {DateTime.UtcNow:O} - {message}");
+        }
     }
 
     public static void LogWarning(string message)
     {
-        Console.WriteLine($"[Warn] {DateTime.UtcNow:O} - {message}");
+        try
+        {
+            Serilog.Log.Warning(message);
+        }
+        catch
+        {
+            Console.WriteLine($"[Warn] {DateTime.UtcNow:O} - {message}");
+        }
     }
 
     public static void LogError(string message, Exception? ex = null)
     {
-        Console.WriteLine($"[Error] {DateTime.UtcNow:O} - {message}");
-        if (ex != null)
+        try
         {
-            Console.WriteLine(ex.ToString());
+            if (ex != null) Serilog.Log.Error(ex, message);
+            else Serilog.Log.Error(message);
+        }
+        catch
+        {
+            Console.WriteLine($"[Error] {DateTime.UtcNow:O} - {message}");
+            if (ex != null) Console.WriteLine(ex.ToString());
         }
     }
 
