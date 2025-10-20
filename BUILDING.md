@@ -6,18 +6,36 @@ This repository includes two helper scripts to produce publish artifacts for mul
 - `build.bat` — Windows (cmd / PowerShell friendly)
 - `build.sh` — Linux / macOS (bash)
 
-Basic usage examples:
+These scripts auto-detect the project (look for `src/*.csproj` or accept `--project <path>`) and publish into a repository-root `build/<project-name>/<config>/net8.0/<rid>/publish` folder. This makes packaging and CI simpler.
 
-Windows (framework-dependent builds):
+Common options
+
+- `--self-contained`   Produce self-contained publish (bundles .NET runtime)
+- `--single-file`      Produce a single-file executable (may break reflection-heavy libs)
+- `--trim`             Enable publish trimming (smaller output; test carefully)
+- `--clean`            Remove previous `build/<project-name>` output before publishing
+- `--config <name>`    Configuration to publish (Debug or Release). Default: Release
+- `--project <path>`   Path to .csproj or project directory. Defaults to `./src` if present, otherwise current dir
+
+Examples
+
+Windows (framework-dependent):
 
     build.bat
 
-Linux (self-contained single-file, trimmed — test thoroughly):
+Clean and publish self-contained single-file trimmed for Linux x64:
 
-    ./build.sh --self-contained --single-file --trim
+    ./build.sh --self-contained --single-file --trim --clean
 
-Scripts publish to `src/bin/<Configuration>/net8.0/<rid>/publish`.
+Output
 
-Notes:
-- Trimming/single-file may break reflection-heavy libraries. Test thoroughly before enabling.
-- Use the `--self-contained` flag if you want a bundle that doesn't require a pre-installed .NET runtime on the host.
+Published artifacts are placed under:
+
+    build/<project-name>/<config>/net8.0/<rid>/publish
+
+Notes
+
+- Trimming/single-file may break reflection-heavy libraries (e.g., Discord.NET). Test thoroughly before enabling trimming.
+- Use `--self-contained` if you want to run without installing .NET on the target host.
+- `--clean` removes the `build/<project-name>` folder before publishing.
+
