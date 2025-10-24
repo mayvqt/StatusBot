@@ -1,8 +1,8 @@
 // Tests for the uptime calculation helper. These validate that cumulative up-time and
 // percentage calculations behave correctly across state changes and elapsed intervals.
 using System;
-using ServiceStatusBot.Models;
-using ServiceStatusBot.Services;
+using StatusBot.Models;
+using StatusBot.Services;
 using Xunit;
 
 namespace StatusBot.Tests;

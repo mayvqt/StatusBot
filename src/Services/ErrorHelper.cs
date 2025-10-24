@@ -1,8 +1,12 @@
-namespace ServiceStatusBot.Services;
+using System;
+using System;
+using Serilog;
+
+namespace StatusBot.Services;
 
 /// <summary>
-///     Lightweight logging helper that routes to Serilog's static logger. If Serilog is not yet
-///     configured the methods will catch exceptions to avoid bringing down the host during startup.
+/// Lightweight logging helper that routes to Serilog's static logger. If Serilog is not yet
+/// configured the methods will catch exceptions to avoid bringing down the host during startup.
 /// </summary>
 internal static class ErrorHelper
 {
@@ -47,7 +51,7 @@ internal static class ErrorHelper
     }
 
     /// <summary>
-    ///     Execute a function and return a fallback value on exception. Errors are logged.
+    /// Execute a function and return a fallback value on exception. Errors are logged.
     /// </summary>
     public static T? Safe<T>(Func<T> func, T? fallback = default)
     {

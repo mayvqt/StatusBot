@@ -1,4 +1,4 @@
-namespace ServiceStatusBot.Models;
+namespace StatusBot.Models;
 
 /// <summary>
 ///     Application configuration loaded from <c>config/config.json</c>.

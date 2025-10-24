@@ -4,9 +4,9 @@ using Discord;
 using Discord.Net;
 using Discord.WebSocket;
 using Microsoft.Extensions.Hosting;
-using ServiceStatusBot.Models;
+using StatusBot.Models;
 
-namespace ServiceStatusBot.Services;
+namespace StatusBot.Services;
 
 /// <summary>
 ///     Background service that posts a single Discord embed showing all service statuses.

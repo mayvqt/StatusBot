@@ -1,7 +1,7 @@
 using Newtonsoft.Json;
-using ServiceStatusBot.Models;
+using StatusBot.Models;
 
-namespace ServiceStatusBot.Services;
+namespace StatusBot.Services;
 
 /// <summary>
 ///     Helper used at startup to ensure the <c>config</c> directory and default config/state files exist.

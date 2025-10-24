@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using ServiceStatusBot.Models;
+using StatusBot.Models;
 
-namespace ServiceStatusBot.Services;
+namespace StatusBot.Services;
 
 /// <summary>
 ///     In-memory store of the latest observed <see cref="ServiceStatus" /> for each service name.

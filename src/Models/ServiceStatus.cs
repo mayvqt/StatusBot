@@ -1,4 +1,4 @@
-namespace ServiceStatusBot.Models;
+namespace StatusBot.Models;
 
 /// <summary>
 ///     Represents the runtime status for a single monitored service.

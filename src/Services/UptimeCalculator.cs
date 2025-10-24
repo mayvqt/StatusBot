@@ -1,16 +1,16 @@
-using ServiceStatusBot.Models;
+using StatusBot.Models;
 
-namespace ServiceStatusBot.Services;
+namespace StatusBot.Services;
 
 /// <summary>
-///     Helper that encapsulates uptime math used by <see cref="StatusMonitor" />.
-///     The calculator updates cumulative up-seconds, uptime percentage and timestamps
-///     based on a previous status and the current observed online flag.
+/// Helper that encapsulates uptime math used by <see cref="StatusMonitor"/>.
+/// The calculator updates cumulative up-seconds, uptime percentage and timestamps
+/// based on a previous status and the current observed online flag.
 /// </summary>
 public static class UptimeCalculator
 {
     /// <summary>
-    ///     Update cumulative up seconds and uptime percent given previous status and current online flag and now.
+    /// Update cumulative up seconds and uptime percent given previous status and current online flag and now.
     /// </summary>
     /// <param name="prev">Previous persisted status (must not be null).</param>
     /// <param name="current">Current status object to populate (must not be null).</param>
@@ -27,14 +27,16 @@ public static class UptimeCalculator
 
         var elapsed = (now - prev.LastChecked).TotalSeconds;
         if (elapsed < 0) elapsed = 0;
-        if (prev.Online) current.CumulativeUpSeconds += elapsed;
+        if (prev.Online)
+        {
+            current.CumulativeUpSeconds += elapsed;
+        }
 
         current.LastChange = prev.Online != online ? now : prev.LastChange;
         current.Online = online;
         current.LastChecked = now;
 
         var totalObserved = (now - current.MonitoringSince).TotalSeconds;
-        current.UptimePercent = totalObserved > 0 ? current.CumulativeUpSeconds / totalObserved * 100.0 :
-            online ? 100.0 : 0.0;
+        current.UptimePercent = totalObserved > 0 ? (current.CumulativeUpSeconds / totalObserved) * 100.0 : (online ? 100.0 : 0.0);
     }
 }

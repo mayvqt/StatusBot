@@ -1,4 +1,4 @@
-namespace ServiceStatusBot.Models;
+namespace StatusBot.Models;
 
 /// <summary>
 ///     Persisted application state saved to disk. Contains the single status message reference and last-known statuses.

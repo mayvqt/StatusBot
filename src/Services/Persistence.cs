@@ -1,19 +1,22 @@
 using Newtonsoft.Json;
-using ServiceStatusBot.Models;
+using StatusBot.Models;
 
-namespace ServiceStatusBot.Services;
+namespace StatusBot.Services;
 
 /// <summary>
-///     Handles loading and saving the application <see cref="State" /> to disk.
-///     The implementation favors safety: atomic writes with a temp file and retries
-///     in case the destination file is locked by another process.
+/// Handles loading and saving the application <see cref="State"/> to disk.
+/// The implementation favors safety: atomic writes with a temp file and retries
+/// in case the destination file is locked by another process.
 /// </summary>
 public class Persistence
 {
-    private readonly object _saveLock = new();
-
     // Absolute file path under the config directory so writes are unambiguous
     private readonly string _statePath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "state.json");
+
+    /// <summary>In-memory application state. Consumers may read and mutate this object; callers must save via <see cref="SaveState"/>.</summary>
+    public State State { get; private set; } = new();
+
+    private readonly object _saveLock = new();
 
     /// <summary>Constructs a Persistence instance and attempts to load existing state.</summary>
     public Persistence()
@@ -27,20 +30,19 @@ public class Persistence
             ErrorHelper.LogError("Failed to load state during Persistence initialization", ex);
             State = new State();
         }
-
         // Log the resolved path so it's easy to debug where we're reading/writing state.
         try
         {
             ErrorHelper.Log($"Persistence using state file path: '{_statePath}'");
         }
-        catch
-        {
-        }
-
+        catch { }
         // Ensure we have a persisted file on disk (create default if missing).
         try
         {
-            if (!File.Exists(_statePath)) SaveState();
+            if (!File.Exists(_statePath))
+            {
+                SaveState();
+            }
         }
         catch (Exception ex)
         {
@@ -48,16 +50,7 @@ public class Persistence
         }
     }
 
-    /// <summary>
-    ///     In-memory application state. Consumers may read and mutate this object; callers must save via
-    ///     <see cref="SaveState" />.
-    /// </summary>
-    public State State { get; private set; } = new();
-
-    /// <summary>
-    ///     Loads state from disk if present. If the file is missing or invalid, starts with a fresh default
-    ///     <see cref="State" />.
-    /// </summary>
+    /// <summary>Loads state from disk if present. If the file is missing or invalid, starts with a fresh default <see cref="State"/>.</summary>
     public void LoadState()
     {
         try
@@ -77,17 +70,18 @@ public class Persistence
                 try
                 {
                     // Preserve the DateTime Kind so previously-saved Local/UTC values round-trip correctly.
-                    var settings = new JsonSerializerSettings
-                        { DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind };
+                    var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind };
                     State = JsonConvert.DeserializeObject<State>(json, settings) ?? new State();
-
+                    
                     // Validate schema version
                     if (string.IsNullOrEmpty(State.Version))
-                        ErrorHelper.LogWarning(
-                            "State file has no version; may be from older schema. Proceeding with caution.");
+                    {
+                        ErrorHelper.LogWarning("State file has no version; may be from older schema. Proceeding with caution.");
+                    }
                     else if (State.Version != "2")
-                        ErrorHelper.LogWarning(
-                            $"State file version is '{State.Version}' but current version is '2'. Schema mismatch may cause issues.");
+                    {
+                        ErrorHelper.LogWarning($"State file version is '{State.Version}' but current version is '2'. Schema mismatch may cause issues.");
+                    }
                 }
                 catch (Exception jsonEx)
                 {
@@ -96,8 +90,7 @@ public class Persistence
                     {
                         var backup = _statePath + ".corrupt." + DateTime.Now.ToString("yyyyMMddHHmmss") + ".bak";
                         File.Copy(_statePath, backup);
-                        ErrorHelper.LogWarning(
-                            $"State file '{_statePath}' is corrupt; backed up to '{backup}' and starting with a fresh state. Error: {jsonEx.Message}");
+                        ErrorHelper.LogWarning($"State file '{_statePath}' is corrupt; backed up to '{backup}' and starting with a fresh state. Error: {jsonEx.Message}");
                     }
                     catch (Exception copyEx)
                     {
@@ -119,9 +112,9 @@ public class Persistence
     }
 
     /// <summary>
-    ///     Saves the in-memory state to disk. Uses a temp file then an atomic replace when possible.
-    ///     On Windows the atomic Replace may fail when an external process holds the file; the method
-    ///     falls back to delete+move with a few retries.
+    /// Saves the in-memory state to disk. Uses a temp file then an atomic replace when possible.
+    /// On Windows the atomic Replace may fail when an external process holds the file; the method
+    /// falls back to delete+move with a few retries.
     /// </summary>
     public void SaveState()
     {
@@ -148,8 +141,7 @@ public class Persistence
                     }
                     catch (IOException ioEx)
                     {
-                        ErrorHelper.LogWarning(
-                            $"File.Replace failed: {ioEx.Message}. Will attempt fallback delete+move.");
+                        ErrorHelper.LogWarning($"File.Replace failed: {ioEx.Message}. Will attempt fallback delete+move.");
                     }
 
                     // Fallback path: try delete+move with a few retries in case of transient locks.
@@ -169,7 +161,7 @@ public class Persistence
                         catch (IOException ioe)
                         {
                             ErrorHelper.LogWarning($"Attempt {attempt} to replace state file failed: {ioe.Message}");
-                            Thread.Sleep(100 * attempt);
+                            System.Threading.Thread.Sleep(100 * attempt);
                         }
                         catch (UnauthorizedAccessException uaex)
                         {
@@ -179,8 +171,9 @@ public class Persistence
                     }
 
                     if (!moved)
-                        ErrorHelper.LogError(
-                            $"Failed to write state file after {maxAttempts} attempts; temp file left at '{tempPath}'");
+                    {
+                        ErrorHelper.LogError($"Failed to write state file after {maxAttempts} attempts; temp file left at '{tempPath}'");
+                    }
                 }
                 else
                 {

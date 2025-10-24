@@ -1,4 +1,4 @@
-namespace ServiceStatusBot.Models;
+namespace StatusBot.Models;
 
 /// <summary>
 ///     Defines a service to monitor: name, type and connection details.

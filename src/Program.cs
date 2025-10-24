@@ -1,7 +1,9 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
-using ServiceStatusBot.Services;
+using Serilog.Events;
+using StatusBot.Models;
+using StatusBot.Services;
 
 // Application entrypoint and host setup. We configure logging, create the DI container
 // and register the background services used by the application.
@@ -10,7 +12,7 @@ try
     SetupHelper.EnsureConfigAndState();
 
     // Configure Serilog as the logging provider
-    Log.Logger = new LoggerConfiguration()
+    Serilog.Log.Logger = new Serilog.LoggerConfiguration()
         .MinimumLevel.Information()
         .Enrich.FromLogContext()
         .WriteTo.Console()
@@ -43,5 +45,5 @@ catch (Exception ex)
 }
 finally
 {
-    Log.CloseAndFlush();
+    Serilog.Log.CloseAndFlush();
 }
