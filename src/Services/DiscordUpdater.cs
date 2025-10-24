@@ -58,6 +58,29 @@ public class DiscordUpdater : BackgroundService
             discord.Ready += () => { readyTcs.SetResult(); return Task.CompletedTask; };
             await readyTcs.Task;
 
+            // Set a friendly rich presence (prefer config.PresenceText if provided)
+            try
+            {
+                var presenceText = _configManager.Config.PresenceText;
+                if (string.IsNullOrWhiteSpace(presenceText))
+                {
+                    var presenceTarget = "services";
+                    var firstHttp = _configManager.Config.Services?.FirstOrDefault(s => string.Equals(s.Type, "HTTP", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(s.Url));
+                    if (firstHttp != null && !string.IsNullOrWhiteSpace(firstHttp.Url))
+                    {
+                        try { presenceTarget = new Uri(firstHttp.Url).Host; } catch { }
+                    }
+
+                    presenceText = $"Monitoring {presenceTarget}";
+                }
+
+                await discord.SetGameAsync(presenceText, type: ActivityType.Watching);
+            }
+            catch (Exception ex)
+            {
+                ErrorHelper.LogWarning($"Failed to set Discord presence: {ex.Message}");
+            }
+
             // Resolve channel
             var channel = discord.GetChannel(channelId) as SocketTextChannel;
             if (channel == null)
@@ -120,7 +143,7 @@ public class DiscordUpdater : BackgroundService
                 try
                 {
                     // Build a single embed with all services
-                    var embed = BuildStatusEmbed(_statusStore.Statuses);
+                    var embed = BuildStatusEmbed(discord, _statusStore.Statuses);
 
                     // Respect cooldown to avoid excessive API calls
                     var cooldown = TimeSpan.FromSeconds(5);
@@ -221,19 +244,35 @@ public class DiscordUpdater : BackgroundService
     /// <summary>
     /// Build a single embed showing all service statuses.
     /// </summary>
-    private Embed BuildStatusEmbed(System.Collections.Concurrent.ConcurrentDictionary<string, ServiceStatus> statuses)
+    private Embed BuildStatusEmbed(DiscordSocketClient discord, System.Collections.Concurrent.ConcurrentDictionary<string, ServiceStatus> statuses)
     {
+        // greeny-teal accent
+        var accent = new Color(20, 160, 120);
+
         var builder = new EmbedBuilder()
-            .WithTitle("📊 Service Status Dashboard")
-            .WithColor(new Color(0, 120, 215))
+            .WithTitle("📊 Status Dashboard")
+            .WithColor(accent)
             .WithFooter(footer => footer.Text = "Status Bot")
-            .WithTimestamp(DateTimeOffset.Now);
+            .WithTimestamp(DateTimeOffset.UtcNow);
+
+        // try to use bot avatar as thumbnail
+        try
+        {
+            var avatar = discord?.CurrentUser?.GetAvatarUrl() ?? discord?.CurrentUser?.GetDefaultAvatarUrl();
+            if (!string.IsNullOrEmpty(avatar)) builder.WithThumbnailUrl(avatar);
+        }
+        catch { }
 
         if (statuses.Count == 0)
         {
             builder.WithDescription("No services configured.");
             return builder.Build();
         }
+
+        var total = statuses.Count;
+        var up = statuses.Count(k => k.Value.Online);
+        var down = total - up;
+        builder.WithDescription($"**{up}/{total}** services online — {down} offline");
 
         foreach (var kvp in statuses.OrderBy(s => s.Key))
         {
@@ -247,9 +286,11 @@ public class DiscordUpdater : BackgroundService
             var lastCheckedTimestamp = FormatDiscordTimestamp(status.LastChecked);
             var lastChangeTimestamp = FormatDiscordTimestamp(status.LastChange);
 
-            var fieldValue = $"{icon} **{statusText}** | Uptime: {uptime}\nLast Check: {lastCheckedTimestamp} | Last Change: {lastChangeTimestamp}";
+            var fieldValue = $"{icon} **{statusText}** · {uptime}\nLast: {lastCheckedTimestamp}\nChanged: {lastChangeTimestamp}";
 
-            builder.AddField(name, fieldValue, inline: false);
+            // stacked vertically for readability
+            // bold the field title for visual hierarchy
+            builder.AddField($"**{name}**", fieldValue, inline: false);
         }
 
         return builder.Build();
