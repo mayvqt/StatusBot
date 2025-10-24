@@ -70,7 +70,8 @@ public static class SetupHelper
 
                 var defaultState = new State
                 {
-                    MessageMetadata = new Dictionary<string, MessageReference>(),
+                    StatusMessageId = 0,
+                    StatusMessageLastUpdatedUtc = default,
                     Statuses = initialStatuses
                 };
 

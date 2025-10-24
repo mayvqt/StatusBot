@@ -90,8 +90,7 @@ public class Persistence
                     State = new State();
                 }
 
-                // Defensive initialization of the dictionaries so consumers don't need to null-check.
-                State.MessageMetadata ??= new Dictionary<string, MessageReference>();
+                // Defensive initialization of the Statuses dictionary so consumers don't need to null-check.
                 State.Statuses ??= new Dictionary<string, ServiceStatus>();
             }
         }

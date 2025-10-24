@@ -6,9 +6,9 @@ using Discord.WebSocket;
 namespace ServiceStatusBot.Services;
 
 /// <summary>
-/// Background service that ensures per-service status messages are posted/updated to Discord.
-/// The service will reuse a single Discord client instance and persist message references
-/// so messages are updated rather than recreated across restarts.
+/// Background service that posts a single Discord embed showing all service statuses.
+/// On startup, searches the channel for an existing status message to prevent duplicates.
+/// Persists the message ID so updates are applied to the same message across restarts.
 /// </summary>
 public class DiscordUpdater : BackgroundService
 {
@@ -26,8 +26,7 @@ public class DiscordUpdater : BackgroundService
     }
 
     /// <summary>
-    /// Main loop: connect to Discord, ensure configured channel exists, and iterate over
-    /// monitored services to create or update a message per-service.
+    /// Main loop: connect to Discord, find or create a single status message, and update it periodically with all service statuses in one embed.
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -58,108 +57,102 @@ public class DiscordUpdater : BackgroundService
             discord.Ready += () => { readyTcs.SetResult(); return Task.CompletedTask; };
             await readyTcs.Task;
 
+            // Resolve channel
+            var channel = discord.GetChannel(channelId) as SocketTextChannel;
+            if (channel == null)
+            {
+                ErrorHelper.LogError($"Discord channel {channelId} not found. DiscordUpdater cannot continue.", new InvalidOperationException("Channel not found"));
+                return;
+            }
+
+            // Discover or create the status message
+            IUserMessage? statusMessage = null;
+            if (_persistence.State.StatusMessageId != 0)
+            {
+                try
+                {
+                    statusMessage = await channel.GetMessageAsync(_persistence.State.StatusMessageId) as IUserMessage;
+                    if (statusMessage == null)
+                    {
+                        ErrorHelper.LogWarning($"Stored message ID {_persistence.State.StatusMessageId} not found in channel; will search recent messages.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ErrorHelper.LogWarning($"Failed to fetch stored message {_persistence.State.StatusMessageId}: {ex.Message}");
+                }
+            }
+
+            // If we still don't have a message, search recent history for an existing status message from this bot
+            if (statusMessage == null)
+            {
+                try
+                {
+                    var recentMessages = await channel.GetMessagesAsync(50).FlattenAsync();
+                    foreach (var msg in recentMessages)
+                    {
+                        if (msg is IUserMessage userMsg && userMsg.Author.Id == discord.CurrentUser.Id && userMsg.Embeds.Count > 0)
+                        {
+                            // Check if this embed looks like our status embed (has "Status Bot" footer or "Status" in title)
+                            var embed = userMsg.Embeds.First();
+                            if (embed.Footer?.Text?.Contains("Status Bot") == true || embed.Title?.Contains("Status") == true)
+                            {
+                                statusMessage = userMsg;
+                                _persistence.State.StatusMessageId = userMsg.Id;
+                                _persistence.SaveState();
+                                ErrorHelper.Log($"Discovered existing status message {userMsg.Id} in channel.");
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ErrorHelper.LogWarning($"Failed to search channel history: {ex.Message}");
+                }
+            }
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    var channel = discord.GetChannel(channelId) as SocketTextChannel;
-                    if (channel == null)
+                    // Build a single embed with all services
+                    var embed = BuildStatusEmbed(_statusStore.Statuses);
+
+                    // Respect cooldown to avoid excessive API calls
+                    var cooldown = TimeSpan.FromSeconds(5);
+                    var canUpdate = (_persistence.State.StatusMessageLastUpdatedUtc == default) ||
+                                   (DateTime.UtcNow - _persistence.State.StatusMessageLastUpdatedUtc) >= cooldown;
+
+                    if (!canUpdate)
                     {
-                        ErrorHelper.LogWarning($"Discord channel {channelId} not found. Retrying...");
-                        await Task.Delay(10000, stoppingToken);
+                        await Task.Delay(1000, stoppingToken);
                         continue;
                     }
 
-                    foreach (var kvp in _statusStore.Statuses)
+                    if (!_rateLimiter.TryConsume())
                     {
-                        try
-                        {
-                            var name = kvp.Key;
-                            var status = kvp.Value;
-
-                            // Helper: produce a Discord <t:...> token from a DateTime using server local time
-                            // Treat Unspecified as Local to preserve server timezone behavior
-                            string DiscordTimestamp(DateTime dt)
-                            {
-                                var kind = dt.Kind == DateTimeKind.Unspecified ? DateTimeKind.Local : dt.Kind;
-                                var dto = DateTime.SpecifyKind(dt, kind);
-                                var unix = new DateTimeOffset(dto).ToUnixTimeSeconds();
-                                return $"<t:{unix}:f>";
-                            }
-
-                            var accent = status.Online ? new Color(0, 180, 170) : new Color(220, 20, 60);
-
-                            // Lookup existing message metadata (if any)
-                            _persistence.State.MessageMetadata ??= new Dictionary<string, ServiceStatusBot.Models.MessageReference>();
-                            _persistence.State.MessageMetadata.TryGetValue(name, out var meta);
-
-                            // Use server local time for any embed-level tokens (Discord will render them in viewer timezone)
-                            var now = DateTimeOffset.Now;
-                            var unix = now.ToUnixTimeSeconds();
-                            var embed = new EmbedBuilder()
-                                .WithTitle($"{name} Status")
-                                .WithDescription($"**Status:** {(status.Online ? "🟢 Online" : "🔴 Offline")}\n**Uptime:** {status.UptimePercent:F2}%")
-                                .AddField("Last Change", DiscordTimestamp(status.LastChange), true)
-                                .AddField("Last Checked", DiscordTimestamp(status.LastChecked), true)
-                                .WithColor(accent)
-                                .WithFooter(footer => footer.Text = "Status Bot")
-                                .Build();
-
-                            IUserMessage? msg = null;
-                            if (meta != null && meta.Id != 0)
-                            {
-                                try
-                                {
-                                    msg = await channel.GetMessageAsync(meta.Id) as IUserMessage;
-                                }
-                                catch (Exception ex)
-                                {
-                                    ErrorHelper.LogWarning($"Failed to fetch stored message {meta.Id} for service {name}: {ex.Message}");
-                                    msg = null;
-                                }
-                            }
-
-                            // Respect per-message cooldown to avoid rapid updates and a global rate limiter.
-                            // We use a conservative cooldown to reduce API traffic and keep state file writes low.
-                            var cooldown = TimeSpan.FromSeconds(5);
-                            var canUpdateByTime = meta == null || (DateTime.UtcNow - meta.LastUpdatedUtc) >= cooldown;
-                            if (!canUpdateByTime)
-                            {
-                                // Skip this update; it's too soon since last update
-                                continue;
-                            }
-
-                            if (!_rateLimiter.TryConsume())
-                            {
-                                // Rate limiter denied this operation; skip this update
-                                ErrorHelper.LogWarning("RateLimiter: throttling Discord updates; skipping an update.");
-                                continue;
-                            }
-
-                            if (msg == null)
-                            {
-                                var newMsg = await channel.SendMessageAsync(embed: embed);
-                                var newMeta = new ServiceStatusBot.Models.MessageReference { Id = newMsg.Id, LastUpdatedUtc = DateTime.UtcNow };
-                                _persistence.State.MessageMetadata[name] = newMeta;
-                            }
-                            else
-                            {
-                                await msg.ModifyAsync(m => m.Embed = embed);
-                                meta = meta ?? new ServiceStatusBot.Models.MessageReference { Id = msg.Id };
-                                meta.LastUpdatedUtc = DateTime.UtcNow;
-                                _persistence.State.MessageMetadata[name] = meta;
-                            }
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            throw;
-                        }
-                        catch (Exception ex)
-                        {
-                            ErrorHelper.LogError("Error updating a Discord message for a service", ex);
-                        }
+                        ErrorHelper.LogWarning("RateLimiter: throttling Discord updates; skipping an update.");
+                        await Task.Delay(1000, stoppingToken);
+                        continue;
                     }
-                    _persistence.SaveState();
+
+                    if (statusMessage == null)
+                    {
+                        // Create new message
+                        statusMessage = await channel.SendMessageAsync(embed: embed);
+                        _persistence.State.StatusMessageId = statusMessage.Id;
+                        _persistence.State.StatusMessageLastUpdatedUtc = DateTime.UtcNow;
+                        _persistence.SaveState();
+                        ErrorHelper.Log($"Created new status message {statusMessage.Id}.");
+                    }
+                    else
+                    {
+                        // Update existing message
+                        await statusMessage.ModifyAsync(m => m.Embed = embed);
+                        _persistence.State.StatusMessageLastUpdatedUtc = DateTime.UtcNow;
+                        _persistence.SaveState();
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -167,7 +160,7 @@ public class DiscordUpdater : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    ErrorHelper.LogError("Unexpected error in DiscordUpdater main loop", ex);
+                    ErrorHelper.LogError("Error updating Discord status message", ex);
                 }
 
                 await Task.Delay(_configManager.Config.PollIntervalSeconds * 1000, stoppingToken);
@@ -190,5 +183,54 @@ public class DiscordUpdater : BackgroundService
         {
             ErrorHelper.LogError("Fatal error in DiscordUpdater", ex);
         }
+    }
+
+    /// <summary>
+    /// Build a single embed showing all service statuses.
+    /// </summary>
+    private Embed BuildStatusEmbed(System.Collections.Concurrent.ConcurrentDictionary<string, ServiceStatus> statuses)
+    {
+        var builder = new EmbedBuilder()
+            .WithTitle("📊 Service Status Dashboard")
+            .WithColor(new Color(0, 120, 215))
+            .WithFooter(footer => footer.Text = "Status Bot")
+            .WithTimestamp(DateTimeOffset.Now);
+
+        if (statuses.Count == 0)
+        {
+            builder.WithDescription("No services configured.");
+            return builder.Build();
+        }
+
+        foreach (var kvp in statuses.OrderBy(s => s.Key))
+        {
+            var name = kvp.Key;
+            var status = kvp.Value;
+
+            var icon = status.Online ? "🟢" : "🔴";
+            var statusText = status.Online ? "Online" : "Offline";
+            var uptime = $"{status.UptimePercent:F2}%";
+
+            var lastCheckedTimestamp = FormatDiscordTimestamp(status.LastChecked);
+            var lastChangeTimestamp = FormatDiscordTimestamp(status.LastChange);
+
+            var fieldValue = $"{icon} **{statusText}** | Uptime: {uptime}\nLast Check: {lastCheckedTimestamp} | Last Change: {lastChangeTimestamp}";
+
+            builder.AddField(name, fieldValue, inline: false);
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Helper: produce a Discord timestamp token from a DateTime using server local time.
+    /// Treats Unspecified as Local to preserve server timezone behavior.
+    /// </summary>
+    private string FormatDiscordTimestamp(DateTime dt)
+    {
+        var kind = dt.Kind == DateTimeKind.Unspecified ? DateTimeKind.Local : dt.Kind;
+        var dto = DateTime.SpecifyKind(dt, kind);
+        var unix = new DateTimeOffset(dto).ToUnixTimeSeconds();
+        return $"<t:{unix}:R>"; // :R = relative time (e.g., "2 minutes ago")
     }
 }
