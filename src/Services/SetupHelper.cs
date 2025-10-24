@@ -25,6 +25,8 @@ public static class SetupHelper
                 {
                     Token = "YOUR_DISCORD_BOT_TOKEN",
                     ChannelId = 123456789012345678,
+                    // Optional default presence text shown by the bot. Empty = auto-detect first HTTP host.
+                    PresenceText = "",
                     PollIntervalSeconds = 60,
                     Services = new List<ServiceDefinition>
                     {
@@ -73,6 +75,9 @@ public static class SetupHelper
                     StatusMessageId = 0,
                     StatusMessageLastUpdatedUtc = default,
                     Statuses = initialStatuses
+                    ,
+                    // Explicitly set the schema version for clarity
+                    Version = "2"
                 };
 
                 File.WriteAllText(statePath, JsonConvert.SerializeObject(defaultState, Formatting.Indented));
