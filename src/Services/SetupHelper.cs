@@ -1,24 +1,24 @@
-using ServiceStatusBot.Models;
 using Newtonsoft.Json;
+using ServiceStatusBot.Models;
 
 namespace ServiceStatusBot.Services;
 
 /// <summary>
-/// Helper used at startup to ensure the <c>config</c> directory and default config/state files exist.
-/// This is a convenience for first-time runs and tests; in production you may provide your own files.
+///     Helper used at startup to ensure the <c>config</c> directory and default config/state files exist.
+///     This is a convenience for first-time runs and tests; in production you may provide your own files.
 /// </summary>
 public static class SetupHelper
 {
     /// <summary>
-    /// Ensure default configuration and state files exist. If missing, write simple defaults.
+    ///     Ensure default configuration and state files exist. If missing, write simple defaults.
     /// </summary>
     public static void EnsureConfigAndState()
     {
-            try
-            {
-                var configDir = Path.Combine(AppContext.BaseDirectory ?? ".", "config");
-                Directory.CreateDirectory(configDir);
-                var configPath = Path.Combine(configDir, "config.json");
+        try
+        {
+            var configDir = Path.Combine(AppContext.BaseDirectory ?? ".", "config");
+            Directory.CreateDirectory(configDir);
+            var configPath = Path.Combine(configDir, "config.json");
             if (!File.Exists(configPath))
             {
                 var defaultConfig = new Config
@@ -28,9 +28,9 @@ public static class SetupHelper
                     PollIntervalSeconds = 60,
                     Services = new List<ServiceDefinition>
                     {
-                        new ServiceDefinition { Name = "MainSite", Type = "HTTP", Url = "https://example.com" },
-                        new ServiceDefinition { Name = "API", Type = "TCP", Host = "api.example.com", Port = 443 },
-                        new ServiceDefinition { Name = "DNS", Type = "ICMP", Host = "8.8.8.8" }
+                        new() { Name = "MainSite", Type = "HTTP", Url = "https://example.com" },
+                        new() { Name = "API", Type = "TCP", Host = "api.example.com", Port = 443 },
+                        new() { Name = "DNS", Type = "ICMP", Host = "8.8.8.8" }
                     }
                 };
                 File.WriteAllText(configPath, JsonConvert.SerializeObject(defaultConfig, Formatting.Indented));

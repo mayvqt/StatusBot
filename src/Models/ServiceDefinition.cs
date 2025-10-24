@@ -1,8 +1,8 @@
 namespace ServiceStatusBot.Models;
 
 /// <summary>
-/// Defines a service to monitor: name, type and connection details.
-/// Supported types include "HTTP", "TCP" and "ICMP".
+///     Defines a service to monitor: name, type and connection details.
+///     Supported types include "HTTP", "TCP" and "ICMP".
 /// </summary>
 public class ServiceDefinition
 {

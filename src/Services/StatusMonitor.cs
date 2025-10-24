@@ -1,22 +1,25 @@
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using Microsoft.Extensions.Hosting;
 using ServiceStatusBot.Models;
 
 namespace ServiceStatusBot.Services;
 
 /// <summary>
-/// Background service that polls configured services and updates their <see cref="ServiceStatus"/>.
-/// The monitor records timestamps and accumulates 'up' time so uptime percentages persist across restarts.
+///     Background service that polls configured services and updates their <see cref="ServiceStatus" />.
+///     The monitor records timestamps and accumulates 'up' time so uptime percentages persist across restarts.
 /// </summary>
 public class StatusMonitor : BackgroundService
 {
-    private readonly ConfigManager _configManager;
-    private readonly StatusStore _statusStore;
-    private readonly Persistence _persistence;
     // Shared HttpClient for all HTTP checks to avoid socket exhaustion and reduce allocations.
-    private static readonly HttpClient _httpClient = new HttpClient()
+    private static readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(10)
     };
+
+    private readonly ConfigManager _configManager;
+    private readonly Persistence _persistence;
+    private readonly StatusStore _statusStore;
 
     public StatusMonitor(ConfigManager configManager, StatusStore statusStore, Persistence persistence)
     {
@@ -30,7 +33,6 @@ public class StatusMonitor : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             foreach (var service in _configManager.Config.Services)
-            {
                 try
                 {
                     if (string.IsNullOrWhiteSpace(service.Name))
@@ -41,7 +43,7 @@ public class StatusMonitor : BackgroundService
 
                     var status = new ServiceStatus();
                     status.LastChecked = DateTime.Now;
-                    bool online = false;
+                    var online = false;
 
                     try
                     {
@@ -53,13 +55,14 @@ public class StatusMonitor : BackgroundService
                                 {
                                     using var response = await _httpClient.GetAsync(service.Url, stoppingToken);
                                     // Only treat 2xx as online
-                                    online = ((int)response.StatusCode >= 200 && (int)response.StatusCode < 300);
+                                    online = (int)response.StatusCode >= 200 && (int)response.StatusCode < 300;
                                 }
+
                                 break;
                             case "TCP":
                                 if (!string.IsNullOrEmpty(service.Host) && service.Port.HasValue)
                                 {
-                                    using var tcpClient = new System.Net.Sockets.TcpClient();
+                                    using var tcpClient = new TcpClient();
                                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                                     cts.CancelAfter(3000); // Cancel after timeout
                                     try
@@ -72,17 +75,20 @@ public class StatusMonitor : BackgroundService
                                         online = false; // Timeout or cancellation
                                     }
                                 }
+
                                 break;
                             case "ICMP":
                                 if (!string.IsNullOrEmpty(service.Host))
                                 {
-                                    using var ping = new System.Net.NetworkInformation.Ping();
+                                    using var ping = new Ping();
                                     var reply = await ping.SendPingAsync(service.Host, 3000);
-                                    online = reply.Status == System.Net.NetworkInformation.IPStatus.Success;
+                                    online = reply.Status == IPStatus.Success;
                                 }
+
                                 break;
                             default:
-                                ErrorHelper.LogWarning($"Unknown service type '{service.Type}' for service '{service.Name}'");
+                                ErrorHelper.LogWarning(
+                                    $"Unknown service type '{service.Type}' for service '{service.Name}'");
                                 break;
                         }
                     }
@@ -109,17 +115,15 @@ public class StatusMonitor : BackgroundService
                         // time since last check -> attribute to previous state
                         var elapsed = (now - prevStatus.LastChecked).TotalSeconds;
                         if (elapsed < 0) elapsed = 0;
-                        if (prevStatus.Online)
-                        {
-                            status.CumulativeUpSeconds += elapsed;
-                        }
+                        if (prevStatus.Online) status.CumulativeUpSeconds += elapsed;
 
                         // update last change timestamp if state flipped
                         status.LastChange = prevStatus.Online != online ? now : prevStatus.LastChange;
 
                         // compute uptime percent over monitoring window
                         var totalObserved = (now - status.MonitoringSince).TotalSeconds;
-                        status.UptimePercent = totalObserved > 0 ? (status.CumulativeUpSeconds / totalObserved) * 100.0 : (online ? 100.0 : 0.0);
+                        status.UptimePercent = totalObserved > 0 ? status.CumulativeUpSeconds / totalObserved * 100.0 :
+                            online ? 100.0 : 0.0;
                     }
                     else
                     {
@@ -147,7 +151,7 @@ public class StatusMonitor : BackgroundService
                 {
                     ErrorHelper.LogError("Unexpected error in StatusMonitor loop", ex);
                 }
-            }
+
             _persistence.SaveState();
             await Task.Delay(_configManager.Config.PollIntervalSeconds * 1000, stoppingToken);
         }

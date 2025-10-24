@@ -3,3 +3,4 @@
 /build
 /tests/StatusBot.Tests/bin
 /tests/StatusBot.Tests/obj
+/.idea

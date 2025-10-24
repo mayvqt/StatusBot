@@ -1,15 +1,15 @@
-using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using ServiceStatusBot.Models;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ServiceStatusBot.Services;
 
 /// <summary>
-/// Lightweight API host that exposes the current status map via a minimal HTTP API.
-/// This is intended for local inspection and health checks and runs in the same process
-/// as the monitoring services.
+///     Lightweight API host that exposes the current status map via a minimal HTTP API.
+///     This is intended for local inspection and health checks and runs in the same process
+///     as the monitoring services.
 /// </summary>
 public class ApiHost : BackgroundService
 {
@@ -21,8 +21,8 @@ public class ApiHost : BackgroundService
     }
 
     /// <summary>
-    /// Starts a minimal WebApplication containing two endpoints:
-    /// <c>/api/status</c> and <c>/api/status/{service}</c>.
+    ///     Starts a minimal WebApplication containing two endpoints:
+    ///     <c>/api/status</c> and <c>/api/status/{service}</c>.
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -53,13 +53,9 @@ public class ApiHost : BackgroundService
                         options.AddPolicy("StatusBotCors", policy =>
                         {
                             if (origins.Length == 1 && origins[0] == "*")
-                            {
                                 policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
-                            }
                             else
-                            {
                                 policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod();
-                            }
                         });
                     });
                     ErrorHelper.Log($"ApiHost: configured CORS origins: {string.Join(',', origins)}");
@@ -69,10 +65,7 @@ public class ApiHost : BackgroundService
             var app = builder.Build();
 
             // If CORS was configured, enable it
-            if (builder.Services.Any(sd => sd.ServiceType == typeof(Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions)))
-            {
-                app.UseCors("StatusBotCors");
-            }
+            if (builder.Services.Any(sd => sd.ServiceType == typeof(CorsOptions))) app.UseCors("StatusBotCors");
 
             app.MapGet("/api/status", () =>
             {

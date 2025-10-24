@@ -1,8 +1,8 @@
 namespace ServiceStatusBot.Models;
 
 /// <summary>
-/// Represents the runtime status for a single monitored service.
-/// Stores timestamps, uptime calculations and counters used by the monitor.
+///     Represents the runtime status for a single monitored service.
+///     Stores timestamps, uptime calculations and counters used by the monitor.
 /// </summary>
 public class ServiceStatus
 {
@@ -15,7 +15,7 @@ public class ServiceStatus
     /// <summary>Instant of the most recent check.</summary>
     public DateTime LastChecked { get; set; }
 
-    /// <summary>Percentage of time the service has been observed up since <see cref="MonitoringSince"/>.</summary>
+    /// <summary>Percentage of time the service has been observed up since <see cref="MonitoringSince" />.</summary>
     public double UptimePercent { get; set; }
 
     /// <summary>When monitoring of this service began.</summary>

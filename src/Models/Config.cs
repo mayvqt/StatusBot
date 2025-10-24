@@ -1,8 +1,8 @@
 namespace ServiceStatusBot.Models;
 
 /// <summary>
-/// Application configuration loaded from <c>config/config.json</c>.
-/// Contains the Discord bot token, target channel, polling interval, and service definitions.
+///     Application configuration loaded from <c>config/config.json</c>.
+///     Contains the Discord bot token, target channel, polling interval, and service definitions.
 /// </summary>
 public class Config
 {
