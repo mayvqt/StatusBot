@@ -3,12 +3,9 @@ using StatusBot.Models;
 
 namespace StatusBot.Services;
 
-/// <summary>
-///     In-memory store of the latest observed <see cref="ServiceStatus" /> for each service name.
-///     Uses a concurrent dictionary to support safe access from background services.
-/// </summary>
+/// <summary>Thread-safe store for service status tracking</summary>
 public class StatusStore
 {
-    /// <summary>Latest statuses keyed by service name.</summary>
+    /// <summary>Service statuses by name</summary>
     public ConcurrentDictionary<string, ServiceStatus> Statuses { get; } = new();
 }

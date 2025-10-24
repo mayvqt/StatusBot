@@ -3,22 +3,17 @@ using StatusBot.Models;
 
 namespace StatusBot.Services;
 
-/// <summary>
-/// Handles loading and saving the application <see cref="State"/> to disk.
-/// The implementation favors safety: atomic writes with a temp file and retries
-/// in case the destination file is locked by another process.
-/// </summary>
+/// <summary>Manages application state persistence with safe atomic writes</summary>
 public class Persistence
 {
-    // Absolute file path under the config directory so writes are unambiguous
     private readonly string _statePath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "state.json");
 
-    /// <summary>In-memory application state. Consumers may read and mutate this object; callers must save via <see cref="SaveState"/>.</summary>
+    /// <summary>Current application state</summary>
     public State State { get; private set; } = new();
 
     private readonly object _saveLock = new();
 
-    /// <summary>Constructs a Persistence instance and attempts to load existing state.</summary>
+    /// <summary>Initialize state persistence</summary>
     public Persistence()
     {
         try
@@ -30,13 +25,13 @@ public class Persistence
             ErrorHelper.LogError("Failed to load state during Persistence initialization", ex);
             State = new State();
         }
-        // Log the resolved path so it's easy to debug where we're reading/writing state.
+
         try
         {
             ErrorHelper.Log($"Persistence using state file path: '{_statePath}'");
         }
         catch { }
-        // Ensure we have a persisted file on disk (create default if missing).
+
         try
         {
             if (!File.Exists(_statePath))
@@ -50,7 +45,7 @@ public class Persistence
         }
     }
 
-    /// <summary>Loads state from disk if present. If the file is missing or invalid, starts with a fresh default <see cref="State"/>.</summary>
+    /// <summary>Load state from disk or initialize new state if missing/invalid</summary>
     public void LoadState()
     {
         try
@@ -59,7 +54,6 @@ public class Persistence
             {
                 var json = File.ReadAllText(_statePath);
 
-                // Treat empty files as missing state and start fresh.
                 if (string.IsNullOrWhiteSpace(json))
                 {
                     ErrorHelper.LogWarning($"State file '{_statePath}' is empty; starting with a fresh state.");
@@ -111,11 +105,7 @@ public class Persistence
         }
     }
 
-    /// <summary>
-    /// Saves the in-memory state to disk. Uses a temp file then an atomic replace when possible.
-    /// On Windows the atomic Replace may fail when an external process holds the file; the method
-    /// falls back to delete+move with a few retries.
-    /// </summary>
+    /// <summary>Save state to disk with atomic write or fallback retry</summary>
     public void SaveState()
     {
         lock (_saveLock)

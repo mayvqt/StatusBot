@@ -1,17 +1,12 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using StatusBot.Models;
 
 namespace StatusBot.Services;
 
-/// <summary>
-///     Helper used at startup to ensure the <c>config</c> directory and default config/state files exist.
-///     This is a convenience for first-time runs and tests; in production you may provide your own files.
-/// </summary>
+/// <summary>Creates default config and state files</summary>
 public static class SetupHelper
 {
-    /// <summary>
-    ///     Ensure default configuration and state files exist. If missing, write simple defaults.
-    /// </summary>
+    /// <summary>Create default files if missing</summary>
     public static void EnsureConfigAndState()
     {
         try

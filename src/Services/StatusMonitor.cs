@@ -3,21 +3,18 @@ using StatusBot.Models;
 
 namespace StatusBot.Services;
 
-/// <summary>
-/// Background service that polls configured services and updates their <see cref="ServiceStatus"/>.
-/// The monitor records timestamps and accumulates 'up' time so uptime percentages persist across restarts.
-/// </summary>
+/// <summary>Polls configured services and tracks uptime</summary>
 public class StatusMonitor : BackgroundService
 {
     private readonly ConfigManager _configManager;
     private readonly StatusStore _statusStore;
     private readonly Persistence _persistence;
-    // Shared HttpClient for all HTTP checks to avoid socket exhaustion and reduce allocations.
     private static readonly HttpClient _httpClient = new HttpClient()
     {
         Timeout = TimeSpan.FromSeconds(10)
     };
 
+    /// <summary>Create monitor with dependencies</summary>
     public StatusMonitor(ConfigManager configManager, StatusStore statusStore, Persistence persistence)
     {
         _configManager = configManager;
@@ -25,6 +22,7 @@ public class StatusMonitor : BackgroundService
         _persistence = persistence;
     }
 
+    /// <summary>Run monitoring loop</summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -52,7 +50,6 @@ public class StatusMonitor : BackgroundService
                                 if (!string.IsNullOrEmpty(service.Url))
                                 {
                                     using var response = await _httpClient.GetAsync(service.Url, stoppingToken);
-                                    // Only treat 2xx as online
                                     online = ((int)response.StatusCode >= 200 && (int)response.StatusCode < 300);
                                 }
                                 break;
@@ -61,7 +58,7 @@ public class StatusMonitor : BackgroundService
                                 {
                                     using var tcpClient = new System.Net.Sockets.TcpClient();
                                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                                    cts.CancelAfter(3000); // Cancel after timeout
+                                    cts.CancelAfter(3000);
                                     try
                                     {
                                         await tcpClient.ConnectAsync(service.Host, service.Port.Value, cts.Token);
@@ -69,7 +66,7 @@ public class StatusMonitor : BackgroundService
                                     }
                                     catch (OperationCanceledException)
                                     {
-                                        online = false; // Timeout or cancellation
+                                        online = false;
                                     }
                                 }
                                 break;
@@ -88,7 +85,6 @@ public class StatusMonitor : BackgroundService
                     }
                     catch (OperationCanceledException)
                     {
-                        // propagate cancellation
                         throw;
                     }
                     catch (Exception ex)
@@ -97,16 +93,13 @@ public class StatusMonitor : BackgroundService
                         online = false;
                     }
 
-                    // Update status
                     var now = DateTime.Now;
                     if (_statusStore.Statuses.TryGetValue(service.Name, out var prevStatus))
                     {
-                        // carry-forward monitoring start and cumulative counters
                         status.MonitoringSince = prevStatus.MonitoringSince;
                         status.CumulativeUpSeconds = prevStatus.CumulativeUpSeconds;
                         status.TotalChecks = prevStatus.TotalChecks + 1;
 
-                        // time since last check -> attribute to previous state
                         var elapsed = (now - prevStatus.LastChecked).TotalSeconds;
                         if (elapsed < 0) elapsed = 0;
                         if (prevStatus.Online)
@@ -114,10 +107,8 @@ public class StatusMonitor : BackgroundService
                             status.CumulativeUpSeconds += elapsed;
                         }
 
-                        // update last change timestamp if state flipped
                         status.LastChange = prevStatus.Online != online ? now : prevStatus.LastChange;
 
-                        // compute uptime percent over monitoring window
                         var totalObserved = (now - status.MonitoringSince).TotalSeconds;
                         status.UptimePercent = totalObserved > 0 ? (status.CumulativeUpSeconds / totalObserved) * 100.0 : (online ? 100.0 : 0.0);
                     }
@@ -125,7 +116,7 @@ public class StatusMonitor : BackgroundService
                     {
                         status.MonitoringSince = now;
                         status.LastChange = now;
-                        status.CumulativeUpSeconds = online ? 0.0 : 0.0; // we will add elapsed on next check
+                        status.CumulativeUpSeconds = online ? 0.0 : 0.0;
                         status.TotalChecks = 1;
                         status.UptimePercent = online ? 100.0 : 0.0;
                     }
@@ -134,7 +125,6 @@ public class StatusMonitor : BackgroundService
                     status.LastChecked = now;
                     _statusStore.Statuses[service.Name] = status;
 
-                    // Also persist the status into the saved State so SaveState() writes it to disk.
                     _persistence.State.Statuses ??= new Dictionary<string, ServiceStatus>();
                     _persistence.State.Statuses[service.Name] = status;
                 }

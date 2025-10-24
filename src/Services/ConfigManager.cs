@@ -3,17 +3,17 @@ using StatusBot.Models;
 
 namespace StatusBot.Services;
 
-/// <summary>Manages config.json with live reload</summary>
+/// <summary>Manages configuration with live reload</summary>
 public class ConfigManager
 {
-    /// <summary>Current configuration</summary>
+    /// <summary>Current config</summary>
     public Config Config { get; private set; } = new();
     private readonly string _configPath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "config.json");
     private FileSystemWatcher? _watcher;
     private DateTime _lastReloadTime = DateTime.MinValue;
     private readonly object _reloadLock = new();
     
-    /// <summary>Config updated event</summary>
+    /// <summary>Config change event</summary>
     public event Action? ConfigChanged;
 
     public ConfigManager()
