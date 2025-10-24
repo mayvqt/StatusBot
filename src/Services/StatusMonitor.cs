@@ -51,7 +51,7 @@ public class StatusMonitor : BackgroundService
                             case "HTTP":
                                 if (!string.IsNullOrEmpty(service.Url))
                                 {
-                                    var response = await _httpClient.GetAsync(service.Url, stoppingToken);
+                                    using var response = await _httpClient.GetAsync(service.Url, stoppingToken);
                                     // Only treat 2xx as online
                                     online = ((int)response.StatusCode >= 200 && (int)response.StatusCode < 300);
                                 }
@@ -60,9 +60,17 @@ public class StatusMonitor : BackgroundService
                                 if (!string.IsNullOrEmpty(service.Host) && service.Port.HasValue)
                                 {
                                     using var tcpClient = new System.Net.Sockets.TcpClient();
-                                    var connectTask = tcpClient.ConnectAsync(service.Host, service.Port.Value);
-                                    var completed = await Task.WhenAny(connectTask, Task.Delay(3000, stoppingToken));
-                                    online = connectTask.IsCompletedSuccessfully && tcpClient.Connected;
+                                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                                    cts.CancelAfter(3000); // Cancel after timeout
+                                    try
+                                    {
+                                        await tcpClient.ConnectAsync(service.Host, service.Port.Value, cts.Token);
+                                        online = tcpClient.Connected;
+                                    }
+                                    catch (OperationCanceledException)
+                                    {
+                                        online = false; // Timeout or cancellation
+                                    }
                                 }
                                 break;
                             case "ICMP":
@@ -129,16 +137,6 @@ public class StatusMonitor : BackgroundService
                     // Also persist the status into the saved State so SaveState() writes it to disk.
                     _persistence.State.Statuses ??= new Dictionary<string, ServiceStatus>();
                     _persistence.State.Statuses[service.Name] = status;
-
-                    // Persist immediately to reduce the window of lost updates if the process is killed.
-                    try
-                    {
-                        _persistence.SaveState();
-                    }
-                    catch (Exception ex)
-                    {
-                        ErrorHelper.LogWarning($"Failed to persist state after updating service '{service.Name}': {ex.Message}");
-                    }
                 }
                 catch (OperationCanceledException)
                 {

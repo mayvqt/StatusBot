@@ -12,6 +12,8 @@ public class ConfigManager
     public Config Config { get; private set; } = new();
     private readonly string _configPath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "config.json");
     private FileSystemWatcher? _watcher;
+    private DateTime _lastReloadTime = DateTime.MinValue;
+    private readonly object _reloadLock = new();
     public event Action? ConfigChanged;
 
     public ConfigManager()
@@ -27,15 +29,27 @@ public class ConfigManager
             };
             _watcher.Changed += (s, e) =>
             {
-                try
+                lock (_reloadLock)
                 {
-                    LoadConfigSafe();
-                    ConfigChanged?.Invoke();
-                    ErrorHelper.Log("Config reloaded successfully.");
-                }
-                catch (Exception ex)
-                {
-                    ErrorHelper.LogError("Error reloading config", ex);
+                    // Debounce: ignore rapid successive changes within 1 second
+                    var now = DateTime.Now;
+                    if ((now - _lastReloadTime).TotalMilliseconds < 1000)
+                        return;
+                    
+                    _lastReloadTime = now;
+                    
+                    try
+                    {
+                        // Delay to allow file write to complete
+                        System.Threading.Thread.Sleep(100);
+                        LoadConfigSafe();
+                        ConfigChanged?.Invoke();
+                        ErrorHelper.Log("Config reloaded successfully.");
+                    }
+                    catch (Exception ex)
+                    {
+                        ErrorHelper.LogError("Error reloading config", ex);
+                    }
                 }
             };
             _watcher.EnableRaisingEvents = true;
@@ -59,6 +73,29 @@ public class ConfigManager
                     var config = JsonConvert.DeserializeObject<Config>(json);
                     if (config == null)
                         throw new Exception("Config file is empty or invalid.");
+                    
+                    // Validate critical fields
+                    if (config.PollIntervalSeconds < 1)
+                    {
+                        ErrorHelper.LogWarning($"PollIntervalSeconds ({config.PollIntervalSeconds}) is too low; setting to 5 seconds minimum.");
+                        config.PollIntervalSeconds = 5;
+                    }
+                    
+                    if (config.Services != null)
+                    {
+                        foreach (var svc in config.Services)
+                        {
+                            if (string.IsNullOrWhiteSpace(svc.Name))
+                            {
+                                ErrorHelper.LogWarning("Service with empty Name found in config; it will be skipped at runtime.");
+                            }
+                            if (string.IsNullOrWhiteSpace(svc.Type))
+                            {
+                                ErrorHelper.LogWarning($"Service '{svc.Name}' has no Type specified; it will fail checks.");
+                            }
+                        }
+                    }
+                    
                     Config = config;
                 }
             }

@@ -72,6 +72,16 @@ public class Persistence
                     // Preserve the DateTime Kind so previously-saved Local/UTC values round-trip correctly.
                     var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind };
                     State = JsonConvert.DeserializeObject<State>(json, settings) ?? new State();
+                    
+                    // Validate schema version
+                    if (string.IsNullOrEmpty(State.Version))
+                    {
+                        ErrorHelper.LogWarning("State file has no version; may be from older schema. Proceeding with caution.");
+                    }
+                    else if (State.Version != "2")
+                    {
+                        ErrorHelper.LogWarning($"State file version is '{State.Version}' but current version is '2'. Schema mismatch may cause issues.");
+                    }
                 }
                 catch (Exception jsonEx)
                 {

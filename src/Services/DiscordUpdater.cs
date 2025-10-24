@@ -50,6 +50,7 @@ public class DiscordUpdater : BackgroundService
             catch (Exception ex)
             {
                 ErrorHelper.LogError("Failed to initialize Discord client", ex);
+                discord?.Dispose();
                 return;
             }
 
@@ -62,6 +63,8 @@ public class DiscordUpdater : BackgroundService
             if (channel == null)
             {
                 ErrorHelper.LogError($"Discord channel {channelId} not found. DiscordUpdater cannot continue.", new InvalidOperationException("Channel not found"));
+                await discord.StopAsync();
+                discord.Dispose();
                 return;
             }
 
@@ -139,19 +142,45 @@ public class DiscordUpdater : BackgroundService
 
                     if (statusMessage == null)
                     {
-                        // Create new message
-                        statusMessage = await channel.SendMessageAsync(embed: embed);
-                        _persistence.State.StatusMessageId = statusMessage.Id;
-                        _persistence.State.StatusMessageLastUpdatedUtc = DateTime.UtcNow;
-                        _persistence.SaveState();
-                        ErrorHelper.Log($"Created new status message {statusMessage.Id}.");
+                        // Create new message with retry logic
+                        const int maxRetries = 3;
+                        for (int attempt = 1; attempt <= maxRetries; attempt++)
+                        {
+                            try
+                            {
+                                statusMessage = await channel.SendMessageAsync(embed: embed);
+                                _persistence.State.StatusMessageId = statusMessage.Id;
+                                _persistence.State.StatusMessageLastUpdatedUtc = DateTime.UtcNow;
+                                _persistence.SaveState();
+                                ErrorHelper.Log($"Created new status message {statusMessage.Id}.");
+                                break;
+                            }
+                            catch (Discord.Net.HttpException httpEx) when (httpEx.HttpCode == System.Net.HttpStatusCode.TooManyRequests && attempt < maxRetries)
+                            {
+                                ErrorHelper.LogWarning($"Discord rate limit hit on message create (attempt {attempt}/{maxRetries}); retrying after delay.");
+                                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), stoppingToken);
+                            }
+                        }
                     }
                     else
                     {
-                        // Update existing message
-                        await statusMessage.ModifyAsync(m => m.Embed = embed);
-                        _persistence.State.StatusMessageLastUpdatedUtc = DateTime.UtcNow;
-                        _persistence.SaveState();
+                        // Update existing message with retry logic
+                        const int maxRetries = 3;
+                        for (int attempt = 1; attempt <= maxRetries; attempt++)
+                        {
+                            try
+                            {
+                                await statusMessage.ModifyAsync(m => m.Embed = embed);
+                                _persistence.State.StatusMessageLastUpdatedUtc = DateTime.UtcNow;
+                                _persistence.SaveState();
+                                break;
+                            }
+                            catch (Discord.Net.HttpException httpEx) when (httpEx.HttpCode == System.Net.HttpStatusCode.TooManyRequests && attempt < maxRetries)
+                            {
+                                ErrorHelper.LogWarning($"Discord rate limit hit on message update (attempt {attempt}/{maxRetries}); retrying after delay.");
+                                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), stoppingToken);
+                            }
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -173,6 +202,10 @@ public class DiscordUpdater : BackgroundService
             catch (Exception ex)
             {
                 ErrorHelper.LogError("Error stopping Discord client", ex);
+            }
+            finally
+            {
+                discord?.Dispose();
             }
         }
         catch (OperationCanceledException)
