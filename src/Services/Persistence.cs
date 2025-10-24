@@ -6,12 +6,8 @@ namespace StatusBot.Services;
 /// <summary>Manages application state persistence with safe atomic writes</summary>
 public class Persistence
 {
-    private readonly string _statePath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "state.json");
-
-    /// <summary>Current application state</summary>
-    public State State { get; private set; } = new();
-
     private readonly object _saveLock = new();
+    private readonly string _statePath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "state.json");
 
     /// <summary>Initialize state persistence</summary>
     public Persistence()
@@ -30,20 +26,22 @@ public class Persistence
         {
             ErrorHelper.Log($"Persistence using state file path: '{_statePath}'");
         }
-        catch { }
+        catch
+        {
+        }
 
         try
         {
-            if (!File.Exists(_statePath))
-            {
-                SaveState();
-            }
+            if (!File.Exists(_statePath)) SaveState();
         }
         catch (Exception ex)
         {
             ErrorHelper.LogWarning($"Failed to ensure state file exists: {ex.Message}");
         }
     }
+
+    /// <summary>Current application state</summary>
+    public State State { get; private set; } = new();
 
     /// <summary>Load state from disk or initialize new state if missing/invalid</summary>
     public void LoadState()
@@ -64,18 +62,17 @@ public class Persistence
                 try
                 {
                     // Preserve the DateTime Kind so previously-saved Local/UTC values round-trip correctly.
-                    var settings = new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind };
+                    var settings = new JsonSerializerSettings
+                        { DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind };
                     State = JsonConvert.DeserializeObject<State>(json, settings) ?? new State();
-                    
+
                     // Validate schema version
                     if (string.IsNullOrEmpty(State.Version))
-                    {
-                        ErrorHelper.LogWarning("State file has no version; may be from older schema. Proceeding with caution.");
-                    }
+                        ErrorHelper.LogWarning(
+                            "State file has no version; may be from older schema. Proceeding with caution.");
                     else if (State.Version != "2")
-                    {
-                        ErrorHelper.LogWarning($"State file version is '{State.Version}' but current version is '2'. Schema mismatch may cause issues.");
-                    }
+                        ErrorHelper.LogWarning(
+                            $"State file version is '{State.Version}' but current version is '2'. Schema mismatch may cause issues.");
                 }
                 catch (Exception jsonEx)
                 {
@@ -84,7 +81,8 @@ public class Persistence
                     {
                         var backup = _statePath + ".corrupt." + DateTime.Now.ToString("yyyyMMddHHmmss") + ".bak";
                         File.Copy(_statePath, backup);
-                        ErrorHelper.LogWarning($"State file '{_statePath}' is corrupt; backed up to '{backup}' and starting with a fresh state. Error: {jsonEx.Message}");
+                        ErrorHelper.LogWarning(
+                            $"State file '{_statePath}' is corrupt; backed up to '{backup}' and starting with a fresh state. Error: {jsonEx.Message}");
                     }
                     catch (Exception copyEx)
                     {
@@ -131,7 +129,8 @@ public class Persistence
                     }
                     catch (IOException ioEx)
                     {
-                        ErrorHelper.LogWarning($"File.Replace failed: {ioEx.Message}. Will attempt fallback delete+move.");
+                        ErrorHelper.LogWarning(
+                            $"File.Replace failed: {ioEx.Message}. Will attempt fallback delete+move.");
                     }
 
                     // Fallback path: try delete+move with a few retries in case of transient locks.
@@ -151,7 +150,7 @@ public class Persistence
                         catch (IOException ioe)
                         {
                             ErrorHelper.LogWarning($"Attempt {attempt} to replace state file failed: {ioe.Message}");
-                            System.Threading.Thread.Sleep(100 * attempt);
+                            Thread.Sleep(100 * attempt);
                         }
                         catch (UnauthorizedAccessException uaex)
                         {
@@ -161,9 +160,8 @@ public class Persistence
                     }
 
                     if (!moved)
-                    {
-                        ErrorHelper.LogError($"Failed to write state file after {maxAttempts} attempts; temp file left at '{tempPath}'");
-                    }
+                        ErrorHelper.LogError(
+                            $"Failed to write state file after {maxAttempts} attempts; temp file left at '{tempPath}'");
                 }
                 else
                 {

@@ -69,8 +69,7 @@ public static class SetupHelper
                 {
                     StatusMessageId = 0,
                     StatusMessageLastUpdatedUtc = default,
-                    Statuses = initialStatuses
-                    ,
+                    Statuses = initialStatuses,
                     // Explicitly set the schema version for clarity
                     Version = "2"
                 };

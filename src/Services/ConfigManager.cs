@@ -6,15 +6,10 @@ namespace StatusBot.Services;
 /// <summary>Manages configuration with live reload</summary>
 public class ConfigManager
 {
-    /// <summary>Current config</summary>
-    public Config Config { get; private set; } = new();
     private readonly string _configPath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "config.json");
-    private FileSystemWatcher? _watcher;
-    private DateTime _lastReloadTime = DateTime.MinValue;
     private readonly object _reloadLock = new();
-    
-    /// <summary>Config change event</summary>
-    public event Action? ConfigChanged;
+    private readonly FileSystemWatcher? _watcher;
+    private DateTime _lastReloadTime = DateTime.MinValue;
 
     public ConfigManager()
     {
@@ -35,13 +30,13 @@ public class ConfigManager
                     var now = DateTime.Now;
                     if ((now - _lastReloadTime).TotalMilliseconds < 1000)
                         return;
-                    
+
                     _lastReloadTime = now;
-                    
+
                     try
                     {
                         // Delay to allow file write to complete
-                        System.Threading.Thread.Sleep(100);
+                        Thread.Sleep(100);
                         LoadConfigSafe();
                         ConfigChanged?.Invoke();
                         ErrorHelper.Log("Config reloaded successfully.");
@@ -60,12 +55,17 @@ public class ConfigManager
         }
     }
 
+    /// <summary>Current config</summary>
+    public Config Config { get; private set; } = new();
+
+    /// <summary>Config change event</summary>
+    public event Action? ConfigChanged;
+
     private void LoadConfigSafe()
     {
         try
         {
             if (File.Exists(_configPath))
-            {
                 using (var stream = new FileStream(_configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (var reader = new StreamReader(stream))
                 {
@@ -73,32 +73,28 @@ public class ConfigManager
                     var config = JsonConvert.DeserializeObject<Config>(json);
                     if (config == null)
                         throw new Exception("Config file is empty or invalid.");
-                    
+
                     // Validate critical fields
                     if (config.PollIntervalSeconds < 1)
                     {
-                        ErrorHelper.LogWarning($"PollIntervalSeconds ({config.PollIntervalSeconds}) is too low; setting to 5 seconds minimum.");
+                        ErrorHelper.LogWarning(
+                            $"PollIntervalSeconds ({config.PollIntervalSeconds}) is too low; setting to 5 seconds minimum.");
                         config.PollIntervalSeconds = 5;
                     }
-                    
+
                     if (config.Services != null)
-                    {
                         foreach (var svc in config.Services)
                         {
                             if (string.IsNullOrWhiteSpace(svc.Name))
-                            {
-                                ErrorHelper.LogWarning("Service with empty Name found in config; it will be skipped at runtime.");
-                            }
+                                ErrorHelper.LogWarning(
+                                    "Service with empty Name found in config; it will be skipped at runtime.");
                             if (string.IsNullOrWhiteSpace(svc.Type))
-                            {
-                                ErrorHelper.LogWarning($"Service '{svc.Name}' has no Type specified; it will fail checks.");
-                            }
+                                ErrorHelper.LogWarning(
+                                    $"Service '{svc.Name}' has no Type specified; it will fail checks.");
                         }
-                    }
-                    
+
                     Config = config;
                 }
-            }
         }
         catch (Exception ex)
         {

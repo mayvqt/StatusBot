@@ -21,16 +21,14 @@ public static class UptimeCalculator
 
         var elapsed = (now - prev.LastChecked).TotalSeconds;
         if (elapsed < 0) elapsed = 0;
-        if (prev.Online)
-        {
-            current.CumulativeUpSeconds += elapsed;
-        }
+        if (prev.Online) current.CumulativeUpSeconds += elapsed;
 
         current.LastChange = prev.Online != online ? now : prev.LastChange;
         current.Online = online;
         current.LastChecked = now;
 
         var totalObserved = (now - current.MonitoringSince).TotalSeconds;
-        current.UptimePercent = totalObserved > 0 ? (current.CumulativeUpSeconds / totalObserved) * 100.0 : (online ? 100.0 : 0.0);
+        current.UptimePercent = totalObserved > 0 ? current.CumulativeUpSeconds / totalObserved * 100.0 :
+            online ? 100.0 : 0.0;
     }
 }

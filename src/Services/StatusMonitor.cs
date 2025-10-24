@@ -1,3 +1,5 @@
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using Microsoft.Extensions.Hosting;
 using StatusBot.Models;
 
@@ -6,13 +8,14 @@ namespace StatusBot.Services;
 /// <summary>Polls configured services and tracks uptime</summary>
 public class StatusMonitor : BackgroundService
 {
-    private readonly ConfigManager _configManager;
-    private readonly StatusStore _statusStore;
-    private readonly Persistence _persistence;
-    private static readonly HttpClient _httpClient = new HttpClient()
+    private static readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(10)
     };
+
+    private readonly ConfigManager _configManager;
+    private readonly Persistence _persistence;
+    private readonly StatusStore _statusStore;
 
     /// <summary>Create monitor with dependencies</summary>
     public StatusMonitor(ConfigManager configManager, StatusStore statusStore, Persistence persistence)
@@ -28,7 +31,6 @@ public class StatusMonitor : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             foreach (var service in _configManager.Config.Services)
-            {
                 try
                 {
                     if (string.IsNullOrWhiteSpace(service.Name))
@@ -39,7 +41,7 @@ public class StatusMonitor : BackgroundService
 
                     var status = new ServiceStatus();
                     status.LastChecked = DateTime.Now;
-                    bool online = false;
+                    var online = false;
 
                     try
                     {
@@ -50,13 +52,14 @@ public class StatusMonitor : BackgroundService
                                 if (!string.IsNullOrEmpty(service.Url))
                                 {
                                     using var response = await _httpClient.GetAsync(service.Url, stoppingToken);
-                                    online = ((int)response.StatusCode >= 200 && (int)response.StatusCode < 300);
+                                    online = (int)response.StatusCode >= 200 && (int)response.StatusCode < 300;
                                 }
+
                                 break;
                             case "TCP":
                                 if (!string.IsNullOrEmpty(service.Host) && service.Port.HasValue)
                                 {
-                                    using var tcpClient = new System.Net.Sockets.TcpClient();
+                                    using var tcpClient = new TcpClient();
                                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                                     cts.CancelAfter(3000);
                                     try
@@ -69,17 +72,20 @@ public class StatusMonitor : BackgroundService
                                         online = false;
                                     }
                                 }
+
                                 break;
                             case "ICMP":
                                 if (!string.IsNullOrEmpty(service.Host))
                                 {
-                                    using var ping = new System.Net.NetworkInformation.Ping();
+                                    using var ping = new Ping();
                                     var reply = await ping.SendPingAsync(service.Host, 3000);
-                                    online = reply.Status == System.Net.NetworkInformation.IPStatus.Success;
+                                    online = reply.Status == IPStatus.Success;
                                 }
+
                                 break;
                             default:
-                                ErrorHelper.LogWarning($"Unknown service type '{service.Type}' for service '{service.Name}'");
+                                ErrorHelper.LogWarning(
+                                    $"Unknown service type '{service.Type}' for service '{service.Name}'");
                                 break;
                         }
                     }
@@ -102,15 +108,13 @@ public class StatusMonitor : BackgroundService
 
                         var elapsed = (now - prevStatus.LastChecked).TotalSeconds;
                         if (elapsed < 0) elapsed = 0;
-                        if (prevStatus.Online)
-                        {
-                            status.CumulativeUpSeconds += elapsed;
-                        }
+                        if (prevStatus.Online) status.CumulativeUpSeconds += elapsed;
 
                         status.LastChange = prevStatus.Online != online ? now : prevStatus.LastChange;
 
                         var totalObserved = (now - status.MonitoringSince).TotalSeconds;
-                        status.UptimePercent = totalObserved > 0 ? (status.CumulativeUpSeconds / totalObserved) * 100.0 : (online ? 100.0 : 0.0);
+                        status.UptimePercent = totalObserved > 0 ? status.CumulativeUpSeconds / totalObserved * 100.0 :
+                            online ? 100.0 : 0.0;
                     }
                     else
                     {
@@ -137,7 +141,7 @@ public class StatusMonitor : BackgroundService
                 {
                     ErrorHelper.LogError("Unexpected error in StatusMonitor loop", ex);
                 }
-            }
+
             _persistence.SaveState();
             await Task.Delay(_configManager.Config.PollIntervalSeconds * 1000, stoppingToken);
         }

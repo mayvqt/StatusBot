@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace StatusBot.Services;
 
@@ -11,12 +7,9 @@ public sealed class RateLimiter
 {
     private readonly object _lock = new();
     private readonly Queue<DateTimeOffset> _timestamps = new();
+    private long _totalBlocked;
 
-    /// <summary>Max operations per window</summary>
-    public int MaxOperations { get; private set; }
-
-    /// <summary>Time window for limiting</summary>
-    public TimeSpan Window { get; private set; }
+    private long _totalConsumed;
 
     /// <summary>Create rate limiter with max ops and window</summary>
     public RateLimiter(int maxOps = 5, TimeSpan? window = null)
@@ -25,25 +18,11 @@ public sealed class RateLimiter
         Window = window ?? TimeSpan.FromSeconds(5);
     }
 
-    /// <summary>Try consume operation immediately</summary>
-    public bool TryConsume()
-    {
-        var now = DateTimeOffset.UtcNow;
-        lock (_lock)
-        {
-            CleanupStale(now);
-            if (_timestamps.Count < MaxOperations)
-            {
-                _timestamps.Enqueue(now);
-                Interlocked.Increment(ref _totalConsumed);
-                OnAllowed?.Invoke();
-                return true;
-            }
-            Interlocked.Increment(ref _totalBlocked);
-            OnBlocked?.Invoke();
-            return false;
-        }
-    }
+    /// <summary>Max operations per window</summary>
+    public int MaxOperations { get; private set; }
+
+    /// <summary>Time window for limiting</summary>
+    public TimeSpan Window { get; private set; }
 
     /// <summary>Available operation slots</summary>
     public int RemainingOperations
@@ -70,20 +49,38 @@ public sealed class RateLimiter
                 CleanupStale(now);
                 if (_timestamps.Count < MaxOperations) return TimeSpan.Zero;
                 var oldest = _timestamps.Peek();
-                var until = (oldest + Window) - now;
+                var until = oldest + Window - now;
                 return until <= TimeSpan.Zero ? TimeSpan.Zero : until;
             }
         }
     }
-
-    private long _totalConsumed;
-    private long _totalBlocked;
 
     /// <summary>Operations consumed since reset</summary>
     public long TotalConsumed => Interlocked.Read(ref _totalConsumed);
 
     /// <summary>Operations blocked since reset</summary>
     public long TotalBlocked => Interlocked.Read(ref _totalBlocked);
+
+    /// <summary>Try consume operation immediately</summary>
+    public bool TryConsume()
+    {
+        var now = DateTimeOffset.UtcNow;
+        lock (_lock)
+        {
+            CleanupStale(now);
+            if (_timestamps.Count < MaxOperations)
+            {
+                _timestamps.Enqueue(now);
+                Interlocked.Increment(ref _totalConsumed);
+                OnAllowed?.Invoke();
+                return true;
+            }
+
+            Interlocked.Increment(ref _totalBlocked);
+            OnBlocked?.Invoke();
+            return false;
+        }
+    }
 
     /// <summary>Operation allowed event</summary>
     public event Action? OnAllowed;
@@ -149,7 +146,9 @@ public sealed class RateLimiter
 
     /// <summary>Try consume with async wait</summary>
     public Task<bool> TryConsumeAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
-        => WaitAsync(timeout, cancellationToken);
+    {
+        return WaitAsync(timeout, cancellationToken);
+    }
 
     /// <summary>Reset limiter state</summary>
     public void Clear()
@@ -162,9 +161,6 @@ public sealed class RateLimiter
 
     private void CleanupStale(DateTimeOffset now)
     {
-        while (_timestamps.Count > 0 && (now - _timestamps.Peek()) > Window)
-        {
-            _timestamps.Dequeue();
-        }
+        while (_timestamps.Count > 0 && now - _timestamps.Peek() > Window) _timestamps.Dequeue();
     }
 }

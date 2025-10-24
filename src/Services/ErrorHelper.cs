@@ -1,7 +1,3 @@
-using System;
-using System;
-using Serilog;
-
 namespace StatusBot.Services;
 
 /// <summary>Safe logging wrapper with early-startup protection</summary>
