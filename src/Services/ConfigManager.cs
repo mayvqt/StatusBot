@@ -3,17 +3,17 @@ using StatusBot.Models;
 
 namespace StatusBot.Services;
 
-/// <summary>
-/// Loads the application's configuration from <c>config/config.json</c> and watches the file for changes.
-/// Consumers can subscribe to the <see cref="ConfigChanged"/> event to react to runtime updates.
-/// </summary>
+/// <summary>Manages config.json with live reload</summary>
 public class ConfigManager
 {
+    /// <summary>Current configuration</summary>
     public Config Config { get; private set; } = new();
     private readonly string _configPath = Path.Combine(AppContext.BaseDirectory ?? ".", "config", "config.json");
     private FileSystemWatcher? _watcher;
     private DateTime _lastReloadTime = DateTime.MinValue;
     private readonly object _reloadLock = new();
+    
+    /// <summary>Config updated event</summary>
     public event Action? ConfigChanged;
 
     public ConfigManager()

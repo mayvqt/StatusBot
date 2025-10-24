@@ -1,23 +1,20 @@
 namespace StatusBot.Models;
 
-/// <summary>
-///     Defines a service to monitor: name, type and connection details.
-///     Supported types include "HTTP", "TCP" and "ICMP".
-/// </summary>
+/// <summary>Monitored service endpoint definition</summary>
 public class ServiceDefinition
 {
-    /// <summary>Unique name for the service (used as the status identifier).</summary>
+    /// <summary>Service identifier</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Type of check to perform (e.g., HTTP, TCP, ICMP).</summary>
-    public string Type { get; set; } = string.Empty; // HTTP, TCP, ICMP
+    /// <summary>Check type (HTTP, TCP, ICMP)</summary>
+    public string Type { get; set; } = string.Empty;
 
-    /// <summary>URL used for HTTP checks (if Type is HTTP).</summary>
+    /// <summary>HTTP endpoint URL</summary>
     public string? Url { get; set; }
 
-    /// <summary>Host used for TCP/ICMP checks.</summary>
+    /// <summary>TCP/ICMP hostname</summary>
     public string? Host { get; set; }
 
-    /// <summary>Optional TCP port to use for TCP checks.</summary>
+    /// <summary>TCP port number</summary>
     public int? Port { get; set; }
 }

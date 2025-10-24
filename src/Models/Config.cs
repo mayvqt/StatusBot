@@ -1,23 +1,20 @@
 namespace StatusBot.Models;
 
-/// <summary>
-///     Application configuration loaded from <c>config/config.json</c>.
-///     Contains the Discord bot token, target channel, polling interval, and service definitions.
-/// </summary>
+/// <summary>Configuration settings for the status bot</summary>
 public class Config
 {
-    /// <summary>The Discord bot token to use for connecting.</summary>
+    /// <summary>Discord bot auth token</summary>
     public string Token { get; set; } = string.Empty;
 
-    /// <summary>The Discord channel id where status messages will be posted.</summary>
+    /// <summary>Target Discord channel for status updates</summary>
     public ulong ChannelId { get; set; }
 
-    /// <summary>Optional presence text shown in the bot's activity (overrides auto-detection).</summary>
+    /// <summary>Custom bot presence text (empty = auto-detect)</summary>
     public string PresenceText { get; set; } = string.Empty;
 
-    /// <summary>Polling interval (in seconds) used by the status monitor.</summary>
+    /// <summary>Status check interval in seconds</summary>
     public int PollIntervalSeconds { get; set; } = 60;
 
-    /// <summary>List of services to monitor.</summary>
+    /// <summary>Monitored service endpoints</summary>
     public List<ServiceDefinition> Services { get; set; } = new();
 }

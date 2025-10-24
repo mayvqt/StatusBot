@@ -8,11 +8,7 @@ using StatusBot.Models;
 
 namespace StatusBot.Services;
 
-/// <summary>
-///     Background service that posts a single Discord embed showing all service statuses.
-///     On startup, searches the channel for an existing status message to prevent duplicates.
-///     Persists the message ID so updates are applied to the same message across restarts.
-/// </summary>
+/// <summary>Posts status updates to Discord</summary>
 public class DiscordUpdater : BackgroundService
 {
     private readonly ConfigManager _configManager;
@@ -29,10 +25,7 @@ public class DiscordUpdater : BackgroundService
         _rateLimiter = rateLimiter;
     }
 
-    /// <summary>
-    ///     Main loop: connect to Discord, find or create a single status message, and update it periodically with all service
-    ///     statuses in one embed.
-    /// </summary>
+    /// <summary>Main loop: connect and update status message</summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -253,9 +246,7 @@ public class DiscordUpdater : BackgroundService
         }
     }
 
-    /// <summary>
-    ///     Build a single embed showing all service statuses.
-    /// </summary>
+    /// <summary>Build status embed with all services</summary>
     private Embed BuildStatusEmbed(DiscordSocketClient discord, ConcurrentDictionary<string, ServiceStatus> statuses)
     {
         // greeny-teal accent
@@ -311,10 +302,7 @@ public class DiscordUpdater : BackgroundService
         return builder.Build();
     }
 
-    /// <summary>
-    ///     Helper: produce a Discord timestamp token from a DateTime using server local time.
-    ///     Treats Unspecified as Local to preserve server timezone behavior.
-    /// </summary>
+    /// <summary>Format relative timestamp for Discord</summary>
     private string FormatDiscordTimestamp(DateTime dt)
     {
         var kind = dt.Kind == DateTimeKind.Unspecified ? DateTimeKind.Local : dt.Kind;

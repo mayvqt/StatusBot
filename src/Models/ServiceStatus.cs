@@ -1,29 +1,26 @@
 namespace StatusBot.Models;
 
-/// <summary>
-///     Represents the runtime status for a single monitored service.
-///     Stores timestamps, uptime calculations and counters used by the monitor.
-/// </summary>
+/// <summary>Current status and metrics for a monitored service</summary>
 public class ServiceStatus
 {
-    /// <summary>True if the last check observed the service as available.</summary>
+    /// <summary>Service is currently available</summary>
     public bool Online { get; set; }
 
-    /// <summary>Instant when the status last changed (flip online/offline).</summary>
+    /// <summary>Last state change timestamp</summary>
     public DateTime LastChange { get; set; }
 
-    /// <summary>Instant of the most recent check.</summary>
+    /// <summary>Last check timestamp</summary>
     public DateTime LastChecked { get; set; }
 
-    /// <summary>Percentage of time the service has been observed up since <see cref="MonitoringSince" />.</summary>
+    /// <summary>Uptime percentage since monitoring began</summary>
     public double UptimePercent { get; set; }
 
-    /// <summary>When monitoring of this service began.</summary>
+    /// <summary>Monitoring start timestamp</summary>
     public DateTime MonitoringSince { get; set; }
 
-    /// <summary>Cumulative seconds observed 'up' across the monitoring window.</summary>
+    /// <summary>Total seconds service was up</summary>
     public double CumulativeUpSeconds { get; set; }
 
-    /// <summary>Number of checks performed for this service.</summary>
+    /// <summary>Total status checks performed</summary>
     public int TotalChecks { get; set; }
 }

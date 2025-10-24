@@ -6,11 +6,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace StatusBot.Services;
 
-/// <summary>
-///     Lightweight API host that exposes the current status map via a minimal HTTP API.
-///     This is intended for local inspection and health checks and runs in the same process
-///     as the monitoring services.
-/// </summary>
+/// <summary>HTTP API exposing service status endpoints</summary>
 public class ApiHost : BackgroundService
 {
     private readonly StatusStore _statusStore;
@@ -20,27 +16,22 @@ public class ApiHost : BackgroundService
         _statusStore = statusStore;
     }
 
-    /// <summary>
-    ///     Starts a minimal WebApplication containing two endpoints:
-    ///     <c>/api/status</c> and <c>/api/status/{service}</c>.
-    /// </summary>
+    /// <summary>Run API host with /api/status endpoints</summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
             var builder = WebApplication.CreateBuilder();
 
-            // Respect ASPNETCORE_URLS if provided; otherwise default to 0.0.0.0:4130
+            // Set default binding if ASPNETCORE_URLS not provided
             var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
             if (string.IsNullOrWhiteSpace(urls))
             {
-                // UseSetting("urls") will be picked up by Kestrel on build
                 builder.WebHost.UseSetting("urls", "http://0.0.0.0:4130");
                 ErrorHelper.Log("ApiHost: no ASPNETCORE_URLS set, defaulting to http://0.0.0.0:4130");
             }
 
-            // Optional CORS: configure allowed origins via env var StatusBot__AllowedOrigins (comma-separated).
-            // Use '*' to allow any origin (not recommended for production).
+            // Configure CORS from StatusBot__AllowedOrigins env var
             var allowedOrigins = Environment.GetEnvironmentVariable("StatusBot__AllowedOrigins");
             if (!string.IsNullOrWhiteSpace(allowedOrigins))
             {
