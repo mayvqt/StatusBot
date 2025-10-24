@@ -4,13 +4,10 @@ using Serilog;
 
 namespace StatusBot.Services;
 
-/// <summary>
-/// Lightweight logging helper that routes to Serilog's static logger. If Serilog is not yet
-/// configured the methods will catch exceptions to avoid bringing down the host during startup.
-/// </summary>
+/// <summary>Safe logging wrapper with early-startup protection</summary>
 internal static class ErrorHelper
 {
-    /// <summary>Log an informational message.</summary>
+    /// <summary>Log info message</summary>
     public static void Log(string message)
     {
         try
@@ -19,11 +16,11 @@ internal static class ErrorHelper
         }
         catch
         {
-            // In early startup Serilog may not be ready; swallow failures to avoid crashing the host.
+            // Ignore during startup
         }
     }
 
-    /// <summary>Log a warning message.</summary>
+    /// <summary>Log warning message</summary>
     public static void LogWarning(string message)
     {
         try
@@ -32,11 +29,11 @@ internal static class ErrorHelper
         }
         catch
         {
-            // Swallow; we're best-effort here.
+            // Ignore during startup
         }
     }
 
-    /// <summary>Log an error message with an optional exception.</summary>
+    /// <summary>Log error with optional exception</summary>
     public static void LogError(string message, Exception? ex = null)
     {
         try
@@ -46,13 +43,11 @@ internal static class ErrorHelper
         }
         catch
         {
-            // Swallow to avoid recursive failures during logger setup.
+            // Ignore during startup
         }
     }
 
-    /// <summary>
-    /// Execute a function and return a fallback value on exception. Errors are logged.
-    /// </summary>
+    /// <summary>Run function with error logging</summary>
     public static T? Safe<T>(Func<T> func, T? fallback = default)
     {
         try
@@ -66,7 +61,7 @@ internal static class ErrorHelper
         }
     }
 
-    /// <summary>Execute an action and log any uncaught exceptions.</summary>
+    /// <summary>Run action with error logging</summary>
     public static void Safe(Action action)
     {
         try
