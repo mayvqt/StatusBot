@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & test matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive_ext: tar.gz
+          - os: windows-latest
+            rid: win-x64
+            archive_ext: zip
+          - os: macos-latest
+            rid: osx-x64
+            archive_ext: tar.gz
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore StatusBot.sln
+
+      - name: Build
+        run: dotnet build StatusBot.sln -c Release --no-restore
+
+      - name: Test with coverage
+        run: dotnet test tests/StatusBot.Tests/StatusBot.Tests.csproj -c Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+
+      - name: Upload coverage reports
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: coverage/**/coverage.cobertura.xml
+
+      - name: Publish app for runtime
+        shell: bash
+        run: |
+          mkdir -p artifacts/${{ matrix.rid }}
+          dotnet publish src/StatusBot.csproj -c Release -r ${{ matrix.rid }} --self-contained false -o artifacts/${{ matrix.rid }} --no-build
+
+      - name: Create archive (Linux/macOS)
+        if: matrix.archive_ext == 'tar.gz'
+        working-directory: artifacts
+        run: tar -czf statusbot-${{ matrix.rid }}.tar.gz ${{ matrix.rid }}
+
+      - name: Create archive (Windows)
+        if: matrix.archive_ext == 'zip'
+        shell: pwsh
+        working-directory: artifacts
+        run: Compress-Archive -Path ${{ matrix.rid }} -DestinationPath statusbot-${{ matrix.rid }}.zip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: statusbot-${{ matrix.rid }}
+          path: artifacts/statusbot-${{ matrix.rid }}.*

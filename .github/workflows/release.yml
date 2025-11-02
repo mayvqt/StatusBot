@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  push:
+    # run this workflow for tag pushes (e.g. v1.0.0)
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.2.3). If empty, a patch bump from the latest tag will be created automatically.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  id-token: write  # Required for artifact attestation
+  attestations: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine or create release tag
+        id: tag
+        run: |
+          set -e
+          INPUT_TAG="${{ github.event.inputs.tag }}"
+          REF_NAME="${{ github.ref_name }}"
+          if [ -n "${INPUT_TAG}" ]; then
+            TAG="${INPUT_TAG}"
+          else
+            if [ "${{ github.event_name }}" = "push" ] && [[ "${REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              TAG="${REF_NAME}"
+            else
+              if git describe --tags --abbrev=0 >/dev/null 2>&1; then
+                LATEST=$(git describe --tags --abbrev=0)
+              else
+                LATEST="v0.0.0"
+              fi
+              MAJ=$(echo "${LATEST}" | sed -E 's/^v([0-9]+)\..*/\1/')
+              MIN=$(echo "${LATEST}" | sed -E 's/^v[0-9]+\.([0-9]+)\..*/\1/')
+              PATCH=$(echo "${LATEST}" | sed -E 's/^v[0-9]+\.[0-9]+\.([0-9]+).*/\1/')
+              MAJ=${MAJ:-0}; MIN=${MIN:-0}; PATCH=${PATCH:-0}
+              NEXT=$((PATCH + 1))
+              TAG="v${MAJ}.${MIN}.${NEXT}"
+            fi
+          fi
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid tag format: ${TAG}. Must be vMAJ.MIN.PATCH"
+            exit 1
+          fi
+          echo "Using release tag: ${TAG}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" != "push" ] || [[ "${REF_NAME}" != "${TAG}" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "Release ${TAG}"
+            git push origin "${TAG}"
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore StatusBot.sln
+
+      - name: Build
+        run: dotnet build StatusBot.sln -c Release --no-restore
+
+      - name: Run tests
+        run: dotnet test tests/StatusBot.Tests/StatusBot.Tests.csproj -c Release --no-build --verbosity normal
+
+      - name: Build and publish cross-platform archives
+        run: |
+          set -e
+          mkdir -p releases
+          VERSION="${{ steps.tag.outputs.version }}"
+          
+          # Define platforms to build
+          declare -A PLATFORMS=(
+            ["linux-x64"]="tar.gz"
+            ["linux-arm64"]="tar.gz"
+            ["win-x64"]="zip"
+            ["win-arm64"]="zip"
+            ["osx-x64"]="tar.gz"
+            ["osx-arm64"]="tar.gz"
+          )
+          
+          # Build and archive for each platform
+          for RID in "${!PLATFORMS[@]}"; do
+            EXT="${PLATFORMS[$RID]}"
+            OUT="releases/statusbot-${RID}-${VERSION}"
+            mkdir -p "${OUT}"
+            
+            echo "Publishing for ${RID}..."
+            dotnet publish src/StatusBot.csproj -c Release -r ${RID} --self-contained false -o "${OUT}"
+            
+            # Create archive
+            cd releases
+            if [ "${EXT}" = "tar.gz" ]; then
+              tar -czf "statusbot-${RID}-${VERSION}.tar.gz" "statusbot-${RID}-${VERSION}"
+              rm -rf "statusbot-${RID}-${VERSION}"
+            else
+              zip -r "statusbot-${RID}-${VERSION}.zip" "statusbot-${RID}-${VERSION}"
+              rm -rf "statusbot-${RID}-${VERSION}"
+            fi
+            cd ..
+          done
+          
+          # Generate checksums
+          cd releases
+          sha256sum *.tar.gz *.zip > checksums.txt
+          cd ..
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'releases/*'
+
+      - name: Create GitHub Release (with assets)
+        id: gh_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: releases/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
