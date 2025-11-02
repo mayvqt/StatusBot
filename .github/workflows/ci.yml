@@ -34,15 +34,17 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
-      - name: Restore
+      - name: Restore dependencies
         run: dotnet restore StatusBot.sln
 
-      - name: Build
+      - name: Build solution
         run: dotnet build StatusBot.sln -c Release --no-restore
 
-      - name: Test with coverage
-        run: dotnet test tests/StatusBot.Tests/StatusBot.Tests.csproj -c Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+      - name: Run tests with coverage
+        run: dotnet test StatusBot.sln -c Release --no-restore --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
 
       - name: Upload coverage reports
         if: matrix.os == 'ubuntu-latest'
@@ -55,7 +57,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts/${{ matrix.rid }}
-          dotnet publish src/StatusBot.csproj -c Release -r ${{ matrix.rid }} --self-contained false -o artifacts/${{ matrix.rid }} --no-build
+          dotnet publish src/StatusBot.csproj -c Release -r ${{ matrix.rid }} --self-contained false -o artifacts/${{ matrix.rid }}
 
       - name: Create archive (Linux/macOS)
         if: matrix.archive_ext == 'tar.gz'
